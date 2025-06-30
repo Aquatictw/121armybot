@@ -1,7 +1,9 @@
 import random
 import ast
 import discord
+from discord.ui import View, Button
 import requests
+from main import TIER_ORDER
 import csv
 from PIL import Image, ImageDraw, ImageSequence
 from datetime import datetime, timedelta, timezone
@@ -227,4 +229,71 @@ def gradient(img, start, end):
     # Blend it over the base image
     result = Image.alpha_composite(img, gradient)
     return result
+
+ITEMS_PER_PAGE = 10
+
+class InventoryView(View):
+    def __init__(self, ctx, inventory):
+        super().__init__(timeout=60)  # auto disable after 60s
+        self.ctx = ctx
+        self.inventory = sorted(
+            inventory,
+            key=lambda card: TIER_ORDER.get(card["tier"], float("inf"))
+        )
+        self.current_page = 0
+        self.message = None
+
+        self.prev_button = Button(label="⬅️", style=discord.ButtonStyle.secondary)
+        self.next_button = Button(label="➡️", style=discord.ButtonStyle.secondary)
+
+        self.prev_button.callback = self.go_prev
+        self.next_button.callback = self.go_next
+
+        self.add_item(self.prev_button)
+        self.add_item(self.next_button)
+
+    def get_page_embed(self):
+        start = self.current_page * ITEMS_PER_PAGE
+        end = start + ITEMS_PER_PAGE
+        page_items = self.inventory[start:end]
+
+        if not page_items:
+            description = "沒有卡片"
+        else:
+            description = "\n".join(
+                f"**{item['name']}** | {item['tier']}"
+                for item in page_items
+            )
+
+        embed = discord.Embed(
+            title=f"{self.ctx.author.display_name} 的 Homo 陣營",
+            url="https://www.laxd.com",
+            description=description,
+            colour=0xffffff
+        )
+        embed.set_author(name="My Homos")
+        embed.set_thumbnail(url=self.ctx.author.display_avatar.url)
+        embed.set_footer(text=f"第 {self.current_page + 1} 頁 / 共 {self.total_pages} 頁")
+        return embed
+
+    @property
+    def total_pages(self):
+        return (len(self.inventory) - 1) // ITEMS_PER_PAGE + 1
+
+    async def go_prev(self, interaction: discord.Interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("這不是你的背包", ephemeral=True)
+            return
+        if self.current_page > 0:
+            self.current_page -= 1
+            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+
+    async def go_next(self, interaction: discord.Interaction):
+        if interaction.user != self.ctx.author:
+            await interaction.response.send_message("這不是你的背包", ephemeral=True)
+            return
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+
 

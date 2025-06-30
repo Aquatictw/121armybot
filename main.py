@@ -155,26 +155,11 @@ async def inv(ctx):
     if user_id not in users:
         await ctx.reply(f"你他媽沒有牌")
         return 
+
     inventory = users[user_id].get("inventory", [])
-    inventory = sorted(
-        inventory,
-        key = lambda card: TIER_ORDER.get(card["tier"], float("inf")),
-        reverse = False
-    )
-    item_lines = [f"**{item['name']}** | {item['tier']}" for _, item in enumerate(inventory, 1)]
-    description = "\n".join(item_lines)
-
-    embed = discord.Embed(
-        title=f"{ctx.author.display_name} 的 Homo 陣營",
-        url="https://www.laxd.com",
-        description=description,
-        colour=0xffffff
-    )
-    embed.set_author(name="My Homos")
-    embed.set_thumbnail(url=ctx.author.display_avatar.url)
-
-    await ctx.send(embed=embed)
-    
+    view = InventoryView(ctx, inventory)
+    embed = view.get_page_embed()
+    await ctx.send(embed=embed, view=view)
 
 @bot.command()
 async def highscore(ctx):
