@@ -28,7 +28,8 @@ tiers = {
     },
     "WhiteGold": {
         "color": "#FFFFFF",
-        "weight": 0.015
+        "weight": 0.015,
+        "logo": "./media/whitegold.png"
     },
     "BlackGold": {
         "color": "#000000",

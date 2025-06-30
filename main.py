@@ -152,7 +152,7 @@ async def highscore(ctx):
 
 @bot.command()
 async def test(ctx):
-    embed, file = char_embed("健介", "「先輩！好きッス！」", "https://wiki.yjsnpi.nu/w/images/0/07/%E5%81%A5%E4%BB%8B06.jpg", "IKUZE06", tiers["Gold"]) 
+    embed, file = char_embed("健介", "「先輩！好きッス！」", "https://wiki.yjsnpi.nu/w/images/0/07/%E5%81%A5%E4%BB%8B06.jpg", "IKUZE06", tiers["WhiteGold"]) 
     await ctx.send(embed = embed, file = file)
 
 @bot.command()
