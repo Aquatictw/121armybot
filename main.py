@@ -35,7 +35,8 @@ with open("user_rolls.json", "r") as f:
 
 bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 bot_channelId = 1341007196917469275
-roll_channelId = 1388890411443028118
+#roll_channelId = 1388890411443028118
+roll_channelId = 1389162530353451069
 aquatic_id = 274463901037494274
 
 tokugawa_map = {
@@ -76,6 +77,26 @@ def save_count():
         }
         json.dump(serializable, f, indent=2)
 
+def save_roll(user, corp, name, desc, img, tier):
+    with open("backpack.json", "r") as f:
+        try:
+            userdata = json.load(f)
+        except json.JSONDecodeError:
+            userdata = {}
+    if user not in userdata:
+        userdata[str(user)] = {"cards": []}
+    card = {
+        "corp" : corp,
+        "name" : name,
+        "desc" : desc, 
+        "img" : img,
+        "tier" : tier
+    }
+    userdata[str(user)]["cards"].append(card)
+    print(userdata)
+    """with open("backpack.json", "w") as f:
+        json.dump(userdata, f, indent = 2)"""
+
         
 def can_roll(user_id):
     if not user_rolls.get(user_id):
@@ -106,6 +127,7 @@ async def handle_roll(ctx):
         await ctx.send(f"{ctx.author.mention} 你沒有Roll了! Roll將在 **{delta}** 後重置")
 
     save_count()
+    save_roll(user_id , corp, name, desc, img, tier)
 
 @bot.event
 async def on_ready():
