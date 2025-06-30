@@ -22,6 +22,14 @@ current_count = 0
 last_user_id = 0
 high_score = 0
 high_score_time ='' 
+TIER_ORDER = {
+        "\u0020\u767d\u91d1\u3001\u0053\u0065\u006d\u0065\u006e": 0,
+        "\u9ed1\u91d1\u3001\u96ea" : 1,
+        "\u767d\u91d1\u3001\u0053\u0065\u006d\u0065\u006e" : 2,
+        "\u5c04\u91d1" : 3,
+        "\u624b\u9280" : 4,
+        "\u7537\u9285" : 5,
+    }
 
 with open("count.txt", "r") as f:
     p1, p2, p3, high_score_time = f.read().strip().split(",")
@@ -147,8 +155,12 @@ async def inv(ctx):
     if user_id not in users:
         await ctx.reply(f"你他媽沒有牌")
         return 
-
     inventory = users[user_id].get("inventory", [])
+    inventory = sorted(
+        inventory,
+        key = lambda card: TIER_ORDER.get(card["tier"], float("inf")),
+        reverse = False
+    )
     item_lines = [f"**{item['name']}** | {item['tier']}" for _, item in enumerate(inventory, 1)]
     description = "\n".join(item_lines)
 
