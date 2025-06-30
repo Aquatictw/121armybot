@@ -183,7 +183,6 @@ def rainbow_img(img, logo ):
     buffer.seek(0)
     return discord.File(fp=buffer, filename="animated.gif")
 
-
 def resize_and_crop_center(img):
     src_w, src_h = img.size
 

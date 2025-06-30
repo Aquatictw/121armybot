@@ -17,7 +17,7 @@ intents.message_content = True
 ROLL_RESET_HOURS = 2
 MAX_ROLLS = 10
 
-user_rolls = {}
+users = {}
 current_count = 0
 last_user_id = 0
 high_score = 0
@@ -27,11 +27,13 @@ with open("count.txt", "r") as f:
     p1, p2, p3, high_score_time = f.read().strip().split(",")
     current_count, last_user_id, high_score = map(int, (p1, p2, p3))
 
-with open("user_rolls.json", "r") as f:
+with open("users.json", "r") as f:
     data = json.load(f)
     for uid, d in data.items():
         d["last_reset"] = datetime.fromisoformat(d["last_reset"])
-    user_rolls = {int(k): v for k, v in data.items()}
+        if "inventory" not in d:
+            d["inventory"] = [] #fallback
+    users = {int(k): v for k, v in data.items()}
 
 bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
 bot_channelId = 1341007196917469275
@@ -67,42 +69,48 @@ def parse_emoji_expression(input_str):
 def save_count():
     with open("count.txt", "w") as f:
         f.write(f"{current_count},{last_user_id},{high_score},{high_score_time}")
-    with open("user_rolls.json", "w") as f:
+    with open("users.json", "w") as f:
         serializable = {
             str(uid): {
                 "last_reset": v["last_reset"].isoformat(),
-                "rolls": v["rolls"]
-            } for uid, v in user_rolls.items()
+                "rolls": v["rolls"],
+                "inventory": v.get("inventory", [])
+            } for uid, v in users.items()
         }
         json.dump(serializable, f, indent=2)
 
         
 def can_roll(user_id):
-    if not user_rolls.get(user_id):
-        user_rolls[user_id] = {'last_reset': datetime.now(timezone(timedelta(hours=8))), 'rolls': MAX_ROLLS}
+    if not users.get(user_id):
+        users[user_id] = {'last_reset': datetime.now(timezone(timedelta(hours=8))), 'rolls': MAX_ROLLS, "inventory": []}
         return True
 
-    now, flag, _ = have_time_passed(user_rolls[user_id]['last_reset'], 2)
+    now, flag, _ = have_time_passed(users[user_id]['last_reset'], 2)
 
     if flag:
-        user_rolls[user_id]['last_reset'] = now
-        user_rolls[user_id]['rolls'] = MAX_ROLLS
+        users[user_id]['last_reset'] = now
+        users[user_id]['rolls'] = MAX_ROLLS
 
-    return user_rolls[user_id]['rolls'] > 0
+    return users[user_id]['rolls'] > 0
 
 
 async def handle_roll(ctx):
     user_id = ctx.author.id
 
     if can_roll(user_id):
-        user_rolls[user_id]['rolls'] -= 1
+        users[user_id]['rolls'] -= 1
         corp, name, desc, img, movies, tier = get_random_char()
-        rolls_left = user_rolls[user_id]['rolls']
-        await ctx.send(f"{ctx.author.mention}✨ 你抽中了 **{name}**  (剩**{rolls_left}**個Roll)")
+        await ctx.send(f"{ctx.author.mention}✨ 你抽中了 **{name}**  (剩**{users[user_id]["rolls"]}**個Roll)")
+        users[user_id]["inventory"].append({
+            "name": name,
+            "tier": tier["text"] 
+        })
         embed, img_file = char_embed(name, desc, img, corp, movies, tier)
+
         await ctx.send(embed = embed, file = img_file)
+    
     else:
-        _, _, delta = have_time_passed(user_rolls[user_id]['last_reset'], 2)
+        _, _, delta = have_time_passed(users[user_id]['last_reset'], 2)
         await ctx.send(f"{ctx.author.mention} 你沒有Roll了! Roll將在 **{delta}** 後重置")
 
     save_count()
@@ -123,7 +131,7 @@ async def yjsnpi(ctx):
         mp4_file = discord.File(f, filename='my_video.mp4')
         await ctx.send(file=mp4_file)
 
-@bot.command()
+@bot.command(aliases=["hm"])
 async def homo(ctx):
     if ctx.channel.id != roll_channelId:
         embed = discord.Embed(title="請在``#惡臭抽卡``抽",
@@ -133,15 +141,28 @@ async def homo(ctx):
     else:
         await handle_roll(ctx)
 
-@bot.command()
-async def hm(ctx):
-    if ctx.channel.id != roll_channelId:
-        embed = discord.Embed(title="請在``#惡臭抽卡``抽",
-            description="請勿隨地脫雪，謝謝 ",
-            colour=0xff0000)
-        await ctx.reply(embed=embed)
-    else:
-        await handle_roll(ctx)
+@bot.command(aliases=["myhomo", "mh"])
+async def inv(ctx):
+    user_id = ctx.author.id
+    if user_id not in users:
+        await ctx.reply(f"你他媽沒有牌")
+        return 
+
+    inventory = users[user_id].get("inventory", [])
+    item_lines = [f"**{item['name']}** | {item['tier']}" for _, item in enumerate(inventory, 1)]
+    description = "\n".join(item_lines)
+
+    embed = discord.Embed(
+        title=f"{ctx.author.display_name} 的 Homo 陣營",
+        url="https://www.laxd.com",
+        description=description,
+        colour=0xffffff
+    )
+    embed.set_author(name="My Homos")
+    embed.set_thumbnail(url=ctx.author.display_avatar.url)
+
+    await ctx.send(embed=embed)
+    
 
 @bot.command()
 async def highscore(ctx):
@@ -151,9 +172,13 @@ async def highscore(ctx):
     )
 
 @bot.command()
-async def test(ctx):
-    embed, file = char_embed("健介", "「先輩！好きッス！」", "https://wiki.yjsnpi.nu/w/images/0/07/%E5%81%A5%E4%BB%8B06.jpg", "IKUZE06",["IKUZE06","女王様お許し下さい","IKUZE07 男欲男職場","BLACK HOLE 3 拷問地獄"] ,tiers["Rainbow"]) 
-    await ctx.send(embed = embed, file = file)
+@commands.has_permissions(manage_messages=True)
+async def purge(ctx):
+    if (ctx.author.id == aquatic_id):
+        await ctx.channel.purge(limit=10)
+        await ctx.send("deleted", delete_after =5)
+        # embed, file = char_embed("健介", "「先輩！好きッス！」", "https://wiki.yjsnpi.nu/w/images/0/07/%E5%81%A5%E4%BB%8B06.jpg", "IKUZE06",["IKUZE06","女王様お許し下さい","IKUZE07 男欲男職場","BLACK HOLE 3 拷問地獄"] ,tiers["Rainbow"]) 
+        # await ctx.send(embed = embed, file = file)
 
 @bot.command()
 async def help(ctx):
