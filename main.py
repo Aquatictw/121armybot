@@ -96,10 +96,10 @@ async def handle_roll(ctx):
 
     if can_roll(user_id):
         user_rolls[user_id]['rolls'] -= 1
-        corp, name, desc, img, tier = get_random_char()
+        corp, name, desc, img, movies, tier = get_random_char()
         rolls_left = user_rolls[user_id]['rolls']
         await ctx.send(f"{ctx.author.mention}✨ 你抽中了 **{name}**  (剩**{rolls_left}**個Roll)")
-        embed, img_file = char_embed(name, desc, img, corp, tier)
+        embed, img_file = char_embed(name, desc, img, corp, movies, tier)
         await ctx.send(embed = embed, file = img_file)
     else:
         _, _, delta = have_time_passed(user_rolls[user_id]['last_reset'], 2)
@@ -152,7 +152,7 @@ async def highscore(ctx):
 
 @bot.command()
 async def test(ctx):
-    embed, file = char_embed("健介", "「先輩！好きッス！」", "https://wiki.yjsnpi.nu/w/images/0/07/%E5%81%A5%E4%BB%8B06.jpg", "IKUZE06", tiers["WhiteGold"]) 
+    embed, file = char_embed("健介", "「先輩！好きッス！」", "https://wiki.yjsnpi.nu/w/images/0/07/%E5%81%A5%E4%BB%8B06.jpg", "IKUZE06",["IKUZE06","女王様お許し下さい","IKUZE07 男欲男職場","BLACK HOLE 3 拷問地獄"] ,tiers["Rainbow"]) 
     await ctx.send(embed = embed, file = file)
 
 @bot.command()
