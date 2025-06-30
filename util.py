@@ -3,7 +3,6 @@ import ast
 import discord
 from discord.ui import View, Button
 import requests
-from main import TIER_ORDER
 import csv
 from PIL import Image, ImageDraw, ImageSequence
 from datetime import datetime, timedelta, timezone
@@ -13,45 +12,62 @@ from io import BytesIO, StringIO
 url = f"https://docs.google.com/spreadsheets/d/1liKVpqp1I6E-aVjLsv1A3MQnH-48SM7FJxbl0j-FbvI/export?format=csv&gid=0"
 
 
+
 tiers = {
     "Bronze": {
         "color": "#bc732f",
         "weight": 0.65,
         "logo": "./media/bronze.png",
-        "text": "男銅"
+        "text": "男銅",
+        "emoji": "<:tokugawa:1228747556306161774>"
     },
     "Silver": {
         "color": "#c0c0c0",
         "weight": 0.25,
         "logo": "./media/silver.png",
-        "text": "手銀"
+        "text": "手銀",
+        "emoji": "<:tokugawa_silver:1389281436527235174>"
+
     },
     "Gold": {
         "color": "#ffd700",
         "weight": 0.08,
         "logo": "./media/gold.png",
-        "text": "射金"
+        "text": "射金", 
+        "emoji": "<:tokugawa_gold:1389281491229474896>"
     },
     "WhiteGold": {
         "color": "#FFFFFF",
         "weight": 0.015,
         "logo": "./media/whitegold.png",
-        "text": "白金、Semen"
+        "text": "白金、Semen", 
+        "emoji": "<:tokugawa_whitegold:1389281538528641116>"
 
     },
     "BlackGold": {
         "color": "#000000",
         "weight": 0.0045,
         "logo": "./media/blackgold.png",
-        "text": "黑金、雪"
+        "text": "黑金、雪", 
+        "emoji":"<:tokugawa_blackgold:1389281576936017950>"
     },
     "Rainbow": {
         "color": "#FFFFFF",
         "weight": 0.0005,
         "logo": "./media/rainbow.png",
-        "text": "彩虹、Ultra HOMO"
+        "text": "彩虹、Ultra HOMO", 
+        "emoji": "<:tokugawa_rainbow:1389281619994611834>"
     }
 }
+
+TIER_ORDER = {
+        "\u0020\u767d\u91d1\u3001\u0053\u0065\u006d\u0065\u006e": 0,
+        "\u9ed1\u91d1\u3001\u96ea" : 1,
+        "\u767d\u91d1\u3001\u0053\u0065\u006d\u0065\u006e" : 2,
+        "\u5c04\u91d1" : 3,
+        "\u624b\u9280" : 4,
+        "\u7537\u9285" : 5,
+    }
 
 
 response = requests.get(url)
@@ -252,16 +268,18 @@ class InventoryView(View):
         self.add_item(self.prev_button)
         self.add_item(self.next_button)
 
+        self.update_button_states()
+
     def get_page_embed(self):
         start = self.current_page * ITEMS_PER_PAGE
         end = start + ITEMS_PER_PAGE
         page_items = self.inventory[start:end]
 
         if not page_items:
-            description = "沒有卡片"
+            description = "阿你怎麼連卡片都沒有"
         else:
             description = "\n".join(
-                f"**{item['name']}** | {item['tier']}"
+                f"**{item['name']}** | {item['tier']}{get_emoji_by_tier_text(item['tier'])}"
                 for item in page_items
             )
 
@@ -281,19 +299,28 @@ class InventoryView(View):
         return (len(self.inventory) - 1) // ITEMS_PER_PAGE + 1
 
     async def go_prev(self, interaction: discord.Interaction):
-        if interaction.user != self.ctx.author:
-            await interaction.response.send_message("這不是你的背包", ephemeral=True)
-            return
         if self.current_page > 0:
             self.current_page -= 1
+            self.update_button_states()
             await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
 
     async def go_next(self, interaction: discord.Interaction):
-        if interaction.user != self.ctx.author:
-            await interaction.response.send_message("這不是你的背包", ephemeral=True)
-            return
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
+            self.update_button_states()
             await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+
+    def update_button_states(self):
+        # Disable prev button if on first page
+        self.prev_button.disabled = (self.current_page == 0)
+        # Disable next button if on last page
+        self.next_button.disabled = (self.current_page >= self.total_pages - 1)
+
+def get_emoji_by_tier_text(tier_text):
+    for tier in tiers.values():
+        if tier["text"] == tier_text:
+            return tier["emoji"]
+    return "❓"
+
 
 
