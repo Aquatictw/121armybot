@@ -11,8 +11,6 @@ from io import BytesIO, StringIO
 
 url = f"https://docs.google.com/spreadsheets/d/1liKVpqp1I6E-aVjLsv1A3MQnH-48SM7FJxbl0j-FbvI/export?format=csv&gid=0"
 
-
-
 tiers = {
     "Bronze": {
         "color": "#bc732f",
@@ -254,7 +252,7 @@ class InventoryView(View):
         self.ctx = ctx
         self.inventory = sorted(
             inventory,
-            key=lambda card: TIER_ORDER.get(card["tier"], float("inf"))
+            key=lambda card: TIER_ORDER.get(card[5]["text"], float("inf"))
         )
         self.current_page = 0
         self.message = None
@@ -279,7 +277,7 @@ class InventoryView(View):
             description = "阿你怎麼連卡片都沒有"
         else:
             description = "\n".join(
-                f"**{item['name']}** | {item['tier']}{get_emoji_by_tier_text(item['tier'])}"
+                f"**{item[1]}** | {item[5]['text']}{item[5]['emoji']}"
                 for item in page_items
             )
 
@@ -316,11 +314,7 @@ class InventoryView(View):
         # Disable next button if on last page
         self.next_button.disabled = (self.current_page >= self.total_pages - 1)
 
-def get_emoji_by_tier_text(tier_text):
-    for tier in tiers.values():
-        if tier["text"] == tier_text:
-            return tier["emoji"]
-    return "❓"
+
 
 
 

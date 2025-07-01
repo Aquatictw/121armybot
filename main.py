@@ -99,12 +99,11 @@ async def handle_roll(ctx):
 
     if can_roll(user_id):
         users[user_id]['rolls'] -= 1
-        corp, name, desc, img, movies, tier = get_random_char()
+        character = get_random_char()
+        corp, name, desc, img, movies, tier = character
+
         await ctx.send(f"{ctx.author.mention}✨ 你抽中了 **{name}**  (剩**{users[user_id]["rolls"]}**個Roll)")
-        users[user_id]["inventory"].append({
-            "name": name,
-            "tier": tier["text"] 
-        })
+        users[user_id]["inventory"].append(character)
         embed, img_file = char_embed(name, desc, img, corp, movies, tier)
 
         await ctx.send(embed = embed, file = img_file)
