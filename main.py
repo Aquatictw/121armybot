@@ -3,7 +3,7 @@ import re
 import json
 import os
 from discord.ext import commands
-from sympy import sympify
+from sympy import sympify  
 from datetime import datetime, timedelta
 from util import *
 from dotenv import load_dotenv 
@@ -33,6 +33,8 @@ with open("users.json", "r") as f:
         d["last_reset"] = datetime.fromisoformat(d["last_reset"])
         if "inventory" not in d:
             d["inventory"] = [] #fallback
+        if "captain" not in d:
+            d["captain"] = None
     users = {int(k): v for k, v in data.items()}
 
 bot = commands.Bot(command_prefix='!', intents=intents, help_command=None)
@@ -74,7 +76,8 @@ def save_count():
             str(uid): {
                 "last_reset": v["last_reset"].isoformat(),
                 "rolls": v["rolls"],
-                "inventory": v.get("inventory", [])
+                "inventory": v.get("inventory", []),
+                "captain": v.get("captain")
             } for uid, v in users.items()
         }
         json.dump(serializable, f, indent=2)
@@ -156,9 +159,48 @@ async def inv(ctx):
         return 
 
     inventory = users[user_id].get("inventory", [])
-    view = InventoryView(ctx, inventory)
-    embed = view.get_page_embed()
-    await ctx.send(embed=embed, view=view)
+    captain = users[user_id].get("captain")
+    view = InventoryView(ctx, inventory, captain)
+    embed, img_file = view.get_page_embed()
+    await ctx.send(embed=embed, view=view, file=img_file)
+
+@bot.command(aliases=["sc"])
+async def showcase(ctx, name: str, tier_name: str):
+    user_id = ctx.author.id
+    if user_id not in users:
+        await ctx.reply(f"你他媽沒有牌")
+        return
+
+    inventory = users[user_id].get("inventory", [])
+    
+    # Find the character in the user's inventory
+    showcase_char = next((item for item in inventory if item[1] == name and item[5] == tiers[tier_name]), None)
+
+    if showcase_char:
+        corp, _, desc, img, movies, tier, count = showcase_char
+        embed, img_file = char_embed(name, desc, img, corp, movies, tier)
+        await ctx.send(embed=embed, file=img_file)
+    else:
+        await ctx.reply(f"找不到卡片 {name} ({tier_name})")
+
+@bot.command(aliases=["hc"])
+async def homocaptain(ctx, name: str, tier_name: str):
+    user_id = ctx.author.id
+    if user_id not in users:
+        await ctx.reply(f"你他媽沒有牌")
+        return
+
+    inventory = users[user_id].get("inventory", [])
+    
+    # Find the character in the user's inventory
+    captain_char = next((item for item in inventory if item[1] == name and item[5] == tiers[tier_name]), None)
+
+    if captain_char:
+        users[user_id]["captain"] = captain_char
+        save_count()
+        await ctx.reply(f"你已將 **{name} ({captain_char[5]['text']})** 設為你的隊長！")
+    else:
+        await ctx.reply(f"找不到卡片 {name} ({tier_name})")
 
 @bot.command()
 async def highscore(ctx):
@@ -189,7 +231,7 @@ async def help(ctx):
                 value="🔴 僅限 ``#惡臭接龍``\n🔴 不接受使用正常數字表示法\n> **:tokugawa:** 表示 1，**:tokugawa_2:** 表示 2，依此類推，**:tokugawa_10:** 表示 0。\n\n``!highscore``:  顯示**目前雪量**及**最高紀錄雪量**🏆\n---------\n",
                 inline=False)
     embed.add_field(name="破真角色抽卡",
-                    value="🔴 僅限 ``#惡臭抽卡``\n``!homo/hm``: 抽取破真角色 \n``!myhomo/mh/inv``: 查看同性戀戰隊\n\n> 每兩小時十抽，從重置後第一抽開始倒數\n\n* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%",
+                    value="🔴 僅限 ``#惡臭抽卡``\n``!homo/hm``: 抽取破真角色 \n``!myhomo/mh/inv``: 查看同性戀戰隊\n``!showcase/sc [角色名稱] [等級代號]``: 展示卡牌\n``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n\n> 每兩小時十抽，從重置後第一抽開始倒數\n\n* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%",
                     inline=False)
 
     embed.set_image(url="https://megapx-assets.dcard.tw/images/f9c8cc97-8502-4772-8668-c8484c6474bd/640.jpeg")
@@ -213,7 +255,7 @@ async def on_message(message):
         global high_score
         global high_score_time
         try:
-            parsed = sympify(msg, evaluate=True)
+            parsed = sympify(msg, evaluate=True) #type: ignore
             if parsed.is_number:
                 print(f"{message.author.display_name} counted {parsed} ({msg})") #debug 
 
@@ -253,4 +295,3 @@ async def on_message(message):
 
 if __name__ == "__main__":
     bot.run(token)
-

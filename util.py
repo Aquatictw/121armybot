@@ -6,7 +6,6 @@ import requests
 import csv
 from PIL import Image, ImageDraw, ImageSequence
 from datetime import datetime, timedelta, timezone
-import requests
 from io import BytesIO, StringIO
 
 url = f"https://docs.google.com/spreadsheets/d/1liKVpqp1I6E-aVjLsv1A3MQnH-48SM7FJxbl0j-FbvI/export?format=csv&gid=0"
@@ -143,7 +142,7 @@ def char_img(base_img, tier):
     overlay = Image.open(tier["logo"]).convert("RGBA")
     max_width = width - 2 * border_width
     max_height = height - 2 * border_width #resize
-    overlay.thumbnail((max_width, max_height), Image.LANCZOS)
+    overlay.thumbnail((max_width, max_height), Image.LANCZOS)  # type: ignore
 
     #if rainbow card
     if tier["text"] == "彩虹、Ultra HOMO":
@@ -176,7 +175,7 @@ def rainbow_img(img, logo ):
         base = img.copy()
         base.paste(logo, (0, 0), logo) #paste logo
 
-        rainbow_frame = frame.convert("RGBA").resize(base.size, Image.LANCZOS)
+        rainbow_frame = frame.convert("RGBA").resize(base.size, Image.LANCZOS)  # type: ignore
         white_bg = Image.new("RGB", base.size, (255, 255, 255))
         white_bg.paste(rainbow_frame, (0, 0), rainbow_frame)  # Use rainbow frame as mask
         
@@ -215,7 +214,7 @@ def resize_and_crop_center(img):
         scale_h = int(scale_w / src_ratio)
 
     # Resize while preserving aspect ratio
-    img_resized = img.resize((scale_w, scale_h), Image.LANCZOS)
+    img_resized = img.resize((scale_w, scale_h), Image.LANCZOS)  # type: ignore  
 
     # Now center-crop
     left = (scale_w - 640) // 2
@@ -247,7 +246,7 @@ def gradient(img, start, end):
 ITEMS_PER_PAGE = 10
 
 class InventoryView(View):
-    def __init__(self, ctx, inventory):
+    def __init__(self, ctx, inventory, captain=None):
         super().__init__(timeout=60)  # auto disable after 60s
         self.ctx = ctx
         self.inventory = sorted(
@@ -256,6 +255,7 @@ class InventoryView(View):
         )
         self.current_page = 0
         self.message = None
+        self.captain = captain
 
         self.prev_button = Button(label="⬅️", style=discord.ButtonStyle.secondary)
         self.next_button = Button(label="➡️", style=discord.ButtonStyle.secondary)
@@ -277,7 +277,7 @@ class InventoryView(View):
             description = "阿你怎麼連卡片都沒有"
         else:
             description = "\n".join(
-                f"**{item[1]}** | {item[5]['text']}{item[5]['emoji']}{f' (x{item[6]})' if item[6] >= 2 else ''}"
+                f"{'📌' if item == self.captain else ''}**{item[1]}** | {item[5]['text']}{item[5]['emoji']}{f' (x{item[6]})' if item[6] >= 2 else ''}"
                 for item in page_items
             )
 
@@ -289,8 +289,16 @@ class InventoryView(View):
         )
         embed.set_author(name="My Homos")
         embed.set_thumbnail(url=self.ctx.author.display_avatar.url)
+        img_file = None
+        if self.captain:
+            _, _, _, img_url, _, tier, _ = self.captain
+            img_file = char_img(img_url, tier)
+            if tier["text"] != "彩虹、Ultra HOMO":
+                embed.set_image(url="attachment://image.png")
+            else:
+                embed.set_image(url="attachment://animated.gif")
         embed.set_footer(text=f"第 {self.current_page + 1} 頁 / 共 {self.total_pages} 頁")
-        return embed
+        return embed, img_file
 
     @property
     def total_pages(self):
@@ -300,13 +308,21 @@ class InventoryView(View):
         if self.current_page > 0:
             self.current_page -= 1
             self.update_button_states()
-            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+            embed, img_file = self.get_page_embed()
+            if img_file:
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[img_file])
+            else:
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[])
 
     async def go_next(self, interaction: discord.Interaction):
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             self.update_button_states()
-            await interaction.response.edit_message(embed=self.get_page_embed(), view=self)
+            embed, img_file = self.get_page_embed()
+            if img_file:
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[img_file])
+            else:
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[])
 
     def update_button_states(self):
         # Disable prev button if on first page
