@@ -103,10 +103,18 @@ async def handle_roll(ctx):
         corp, name, desc, img, movies, tier = character
 
         await ctx.send(f"{ctx.author.mention}✨ 你抽中了 **{name}**  (剩**{users[user_id]["rolls"]}**個Roll)")
-        users[user_id]["inventory"].append(character)
-        embed, img_file = char_embed(name, desc, img, corp, movies, tier)
 
-        await ctx.send(embed = embed, file = img_file)
+        # Check if the character already exists in the inventory
+        existing_character = next((item for item in users[user_id]["inventory"] if item[1] == name and item[5]['text'] == tier['text']), None)
+
+        if existing_character:
+            existing_character[6] += 1  # Increment count
+        else:
+            character_with_count = list(character) + [1] # create new character, initilize count
+            users[user_id]["inventory"].append(character_with_count)
+
+        embed, img_file = char_embed(name, desc, img, corp, movies, tier)
+        await ctx.send(embed=embed, file=img_file)
     
     else:
         _, _, delta = have_time_passed(users[user_id]['last_reset'], 2)
@@ -238,7 +246,7 @@ async def on_message(message):
 
                 save_count()
 
-        except Exception as e:
+        except Exception:
             pass
 
     await bot.process_commands(message) # also process the message as commands

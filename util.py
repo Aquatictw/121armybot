@@ -277,7 +277,7 @@ class InventoryView(View):
             description = "阿你怎麼連卡片都沒有"
         else:
             description = "\n".join(
-                f"**{item[1]}** | {item[5]['text']}{item[5]['emoji']}"
+                f"**{item[1]}** | {item[5]['text']}{item[5]['emoji']}{f' (x{item[6]})' if item[6] >= 2 else ''}"
                 for item in page_items
             )
 
