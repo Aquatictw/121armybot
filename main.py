@@ -2,6 +2,7 @@ import discord
 import re
 import json
 import os
+import random
 from discord.ext import commands
 from sympy import sympify  
 from datetime import datetime, timedelta
@@ -315,6 +316,21 @@ async def battle(ctx, member: discord.Member):
         battle_view = BattleView(ctx.author, member)
         embed = battle_view.create_embed()
         await ctx.send(embed=embed, view=battle_view)
-
+@bot.command()
+async def draw(ctx):
+    user_id = ctx.author.id
+    inventory = users[user_id].get("inventory", [])
+    user_deck = {'deck': []}
+    users[user_id].append(user_deck)
+    index = random().randrange(0, len(inventory) - 1)
+    users[user_id]['deck'].append(inventory[index])
+    deck = users.get("deck", [])
+    view = InventoryView(ctx, deck)
+    embed  = view.get_page_embed()
+    await ctx.send(embed=embed, view=view)
+@bot.command(aliases = ["md"])
+async def mydeck(ctx, member = discord.Member):
+    user_id = ctx.author.id
+    
 if __name__ == "__main__":
     bot.run(token)
