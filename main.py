@@ -2,11 +2,12 @@ import discord
 import re
 import json
 import os
+import random
 from discord.ext import commands
 from sympy import sympify  
 from datetime import datetime, timedelta
 from util import *
-from battle import BattleConfirmation, BattleView
+from battle import BattleConfirmation, BattleView, create_battle_image
 from dotenv import load_dotenv 
 
 
@@ -186,6 +187,7 @@ async def showcase(ctx, name: str, tier_name: str):
         await ctx.send(embed=embed, file=img_file)
     else:
         await ctx.reply(f"找不到卡片 {name} ({tier_name})", ephemral = True)
+
 @bot.command(aliases = ["ct"])
 async def checktime(ctx):
     user_id = ctx.author.id
@@ -316,7 +318,6 @@ async def battle(ctx, member: discord.Member):
     if len(p1_inventory) < 5:
         await ctx.send(f"{ctx.author.mention} 你必須至少有5張卡才能戰鬥。")
         return
-
     if len(p2_inventory) < 5:
         await ctx.send(f"{member.mention} 必須至少有5張卡才能戰鬥。")
         return
@@ -330,23 +331,23 @@ async def battle(ctx, member: discord.Member):
         p1_inventory = users[p1_id]["inventory"]
         p2_inventory = users[p2_id]["inventory"]
         battle_view = BattleView(ctx.author, member, p1_inventory, p2_inventory)
-        # battle_image = create_battle_image(battle_view.p1_cards, battle_view.p2_cards)
-        for item in battle_view.p1_cards:
-            print(item)
+        battle_image = create_battle_image(battle_view.p1_cards, battle_view.p2_cards)
         embed = battle_view.create_embed()
-        # await ctx.send(embed=embed, view=battle_view, file=battle_image)
         await ctx.send(embed=embed, view=battle_view)
+        await ctx.send(file=battle_image)
+
 @bot.command()
 async def draw(ctx):
     user_id = ctx.author.id
     inventory = users[user_id].get("inventory", [])
     users[user_id]['deck'] = []
-    index = random().randrange(0, len(inventory) - 1)
+    index = random.randrange(0, len(inventory) - 1)
     users[user_id]['deck'].append(inventory[index])
     deck = users.get("deck", [])
     view = InventoryView(ctx, deck)
     embed  = view.get_page_embed()
     await ctx.send(embed=embed, view=view)
+
 @bot.command(aliases = ["md"])
 async def mydeck(ctx, member = discord.Member):
     user_id = ctx.author.id

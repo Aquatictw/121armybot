@@ -1,7 +1,66 @@
 import discord
 from random import uniform, sample
 from discord.ui import View, Button
-from util import create_battle_image
+from PIL import Image, ImageDraw
+from io import BytesIO
+import requests
+from util import resize_and_crop_center
+
+try:
+    from PIL import ImageFont
+    font = ImageFont.truetype("arial.ttf", 20) # Use a common font, adjust size as needed
+except IOError:
+    font = ImageFont.load_default()
+
+def create_battle_image(p1_cards, p2_cards):
+    background = Image.new('RGBA', (1200, 1200), (0, 0, 0, 0)) # Increased size for text and larger images
+    draw = ImageDraw.Draw(background)
+
+    # Player 1 cards on the left
+    for i, card in enumerate(p1_cards):
+        name, _, _, img_url, _, tier = card[:6] # Extract name and other details
+        try:
+            response = requests.get(img_url)
+            card_img = Image.open(BytesIO(response.content)).convert("RGBA")
+            card_img = resize_and_crop_center(card_img)
+            card_img.thumbnail((200, 200)) # Increased thumbnail size
+            
+            # Calculate position for image and text
+            img_x = 20
+            img_y = i * 220 + 10 # Adjusted spacing for larger images
+            text_x = img_x + card_img.width + 10 # Text to the right of the image
+            text_y = img_y + (card_img.height - font.getbbox(name)[3]) // 2 # Center text vertically
+
+            background.paste(card_img, (img_x, img_y), card_img)
+            draw.text((text_x, text_y), name, font=font, fill=(255, 255, 255, 255)) # White text
+        except Exception as e:
+            print(f"Error processing image for p1: {img_url} - {e}")
+
+
+    # Player 2 cards on the right
+    for i, card in enumerate(p2_cards):
+        name, _, _, img_url, _, tier = card[:6] # Extract name and other details
+        try:
+            response = requests.get(img_url)
+            card_img = Image.open(BytesIO(response.content)).convert("RGBA")
+            card_img = resize_and_crop_center(card_img)
+            card_img.thumbnail((200, 200)) # Increased thumbnail size
+
+            # Calculate position for image and text
+            img_x = 1200 - card_img.width - 20 # Right aligned
+            img_y = i * 220 + 10 # Adjusted spacing for larger images
+            text_x = img_x - 10 - font.getbbox(name)[2] # Text to the left of the image
+            text_y = img_y + (card_img.height - font.getbbox(name)[3]) // 2 # Center text vertically
+
+            background.paste(card_img, (img_x, img_y), card_img)
+            draw.text((text_x, text_y), name, font=font, fill=(255, 255, 255, 255)) # White text
+        except Exception as e:
+            print(f"Error processing image for p2: {img_url} - {e}")
+
+    buffer = BytesIO()
+    background.save(buffer, format="PNG")
+    buffer.seek(0)
+    return discord.File(fp=buffer, filename="battle.png")
 
 class BattleConfirmation(View):
     def __init__(self, challenger, challenged):
@@ -55,12 +114,9 @@ class BattleView(View):
         embed.set_author(name=f"Homo戰鬥開始🗡️ {self.player1.display_name} v.s. {self.player2.display_name}")
         embed.add_field(name=f"{self.player1.display_name}", value=health_bar1, inline=True)
         embed.add_field(name=f"{self.player2.display_name}", value=health_bar2, inline=True)
-
         embed.add_field(name="📊 狀態",
                 value=f"{self.player1.display_name} {round(self.health1, 1)}/{self.max_health} ⚔️ {self.player2.display_name} {round(self.health2, 1)}/{self.max_health}",
                 inline=False)
-
-        # embed.set_image(url="attachment://battle.png")
 
         embed.set_footer(
                  text=f"{self.player1.display_name}把他的雞巴，放進了{self.player2.display_name}的皮炎裡面",
@@ -84,14 +140,14 @@ class BattleView(View):
             self.health1 -= damage 
             self.turn = self.player1
         
-        if self.health1 <= 0:
+        if self.health1 <= 0: # player1 dead
             self.health1 = 0
             self.stop()
             await interaction.response.edit_message(embed=self.create_embed(), view=None)
             await interaction.followup.send(f"{self.player2.mention} 獲勝！")
             return
         
-        if self.health2 <= 0:
+        if self.health2 <= 0: #player2 dead 
             self.health2 = 0
             self.stop()
             await interaction.response.edit_message(embed=self.create_embed(), view=None)
@@ -99,4 +155,6 @@ class BattleView(View):
             return
 
         self.round += 1
+        battle_image = create_battle_image(self.p1_cards, self.p2_cards)
         await interaction.response.edit_message(embed=self.create_embed())
+        await interaction.followup.send(file=battle_image)
