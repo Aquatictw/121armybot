@@ -256,6 +256,9 @@ class InventoryView(View):
         self.current_page = 0
         self.message = None
         self.captain = captain
+        if self.captain: # create a captain img file to be reused later
+            _, _, _, img_url, _, tier, _ = self.captain
+            self.img_file = char_img(img_url, tier)
 
         self.prev_button = Button(label="⬅️", style=discord.ButtonStyle.secondary)
         self.next_button = Button(label="➡️", style=discord.ButtonStyle.secondary)
@@ -289,16 +292,15 @@ class InventoryView(View):
         )
         embed.set_author(name="My Homos")
         embed.set_thumbnail(url=self.ctx.author.display_avatar.url)
-        img_file = None
         if self.captain:
-            _, _, _, img_url, _, tier, _ = self.captain
-            img_file = char_img(img_url, tier)
+            _, _, _, _, _, tier, _ = self.captain
             if tier["text"] != "彩虹、Ultra HOMO":
                 embed.set_image(url="attachment://image.png")
             else:
                 embed.set_image(url="attachment://animated.gif")
+
         embed.set_footer(text=f"第 {self.current_page + 1} 頁 / 共 {self.total_pages} 頁")
-        return embed, img_file
+        return embed
 
     @property
     def total_pages(self):
@@ -308,9 +310,10 @@ class InventoryView(View):
         if self.current_page > 0:
             self.current_page -= 1
             self.update_button_states()
-            embed, img_file = self.get_page_embed()
-            if img_file:
-                await interaction.response.edit_message(embed=embed, view=self, attachments=[img_file])
+            embed = self.get_page_embed()
+            if self.captain:
+                self.img_file.fp.seek(0)
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[self.img_file])
             else:
                 await interaction.response.edit_message(embed=embed, view=self, attachments=[])
 
@@ -318,9 +321,10 @@ class InventoryView(View):
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             self.update_button_states()
-            embed, img_file = self.get_page_embed()
-            if img_file:
-                await interaction.response.edit_message(embed=embed, view=self, attachments=[img_file])
+            embed  = self.get_page_embed()
+            if self.captain:
+                self.img_file.fp.seek(0)
+                await interaction.response.edit_message(embed=embed, view=self, attachments=[self.img_file])
             else:
                 await interaction.response.edit_message(embed=embed, view=self, attachments=[])
 

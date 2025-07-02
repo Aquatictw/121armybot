@@ -161,8 +161,8 @@ async def inv(ctx):
     inventory = users[user_id].get("inventory", [])
     captain = users[user_id].get("captain")
     view = InventoryView(ctx, inventory, captain)
-    embed, img_file = view.get_page_embed()
-    await ctx.send(embed=embed, view=view, file=img_file)
+    embed  = view.get_page_embed()
+    await ctx.send(embed=embed, view=view, file=view.img_file)
 
 @bot.command(aliases=["sc"])
 async def showcase(ctx, name: str, tier_name: str):
@@ -215,8 +215,6 @@ async def purge(ctx):
     if (ctx.author.id == aquatic_id):
         await ctx.channel.purge(limit=10)
         await ctx.send("deleted", delete_after =5)
-        # embed, file = char_embed("健介", "「先輩！好きッス！」", "https://wiki.yjsnpi.nu/w/images/0/07/%E5%81%A5%E4%BB%8B06.jpg", "IKUZE06",["IKUZE06","女王様お許し下さい","IKUZE07 男欲男職場","BLACK HOLE 3 拷問地獄"] ,tiers["Rainbow"]) 
-        # await ctx.send(embed = embed, file = file)
 
 @bot.command()
 async def help(ctx):
