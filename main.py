@@ -186,6 +186,11 @@ async def showcase(ctx, name: str, tier_name: str):
         await ctx.send(embed=embed, file=img_file)
     else:
         await ctx.reply(f"找不到卡片 {name} ({tier_name})", ephemral = True)
+@bot.command(aliases = ["ct"])
+async def checktime(ctx):
+    user_id = ctx.author.id
+    _, _, delta = have_time_passed(users[user_id]['last_reset'], 2)
+    await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
 
 @bot.command(aliases=["hc"])
 async def homocaptain(ctx, name: str, tier_name: str):
