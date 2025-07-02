@@ -1,6 +1,7 @@
 import discord
-from random import uniform 
+from random import uniform, sample
 from discord.ui import View, Button
+from util import create_battle_image
 
 class BattleConfirmation(View):
     def __init__(self, challenger, challenged):
@@ -29,18 +30,24 @@ class BattleConfirmation(View):
         await interaction.response.send_message(f"{self.challenged.mention} 拒絕了 {self.challenger.mention} 的挑戰。")
 
 class BattleView(View):
-    def __init__(self, player1, player2):
+    def __init__(self, player1, player2, p1_inventory, p2_inventory):
         super().__init__()
         self.player1 = player1
         self.player2 = player2
-        self.health1 = 114
+        self.p1_cards = sample(p1_inventory, 5) #隨機抽取5張卡排
+        self.p2_cards = sample(p2_inventory, 5)
+        self.max_health = 114
+        self.health1 = self.max_health
         self.round = 1
-        self.health2 = 114
+        self.health2 = self.max_health
         self.turn = player1
 
     def create_embed(self):
-        health_bar1 = "🟥" * int(self.health1) + "⬛" * (10 - int(self.health1))
-        health_bar2 = "🟥" * int(self.health2) + "⬛" * (10 - int(self.health2))
+        health_bar1_blocks = round((self.health1 / self.max_health) * 10) if self.health1 > 0 else 0
+        health_bar1 = "🟥" * health_bar1_blocks + "⬛" * (10 - health_bar1_blocks)
+        
+        health_bar2_blocks = round((self.health2 / self.max_health) * 10) if self.health2 > 0 else 0
+        health_bar2 = "🟥" * health_bar2_blocks + "⬛" * (10 - health_bar2_blocks)
         
         embed = discord.Embed(title=f"🛡️ 回合 {self.round} -  輪到{self.turn.display_name}",
                       url="https://laxd.com",
@@ -50,10 +57,10 @@ class BattleView(View):
         embed.add_field(name=f"{self.player2.display_name}", value=health_bar2, inline=True)
 
         embed.add_field(name="📊 狀態",
-                value=f"{self.player1.display_name} {round(self.health1, 1)}/114 ⚔️ {self.player2.display_name} {round(self.health2, 1)}/114",
+                value=f"{self.player1.display_name} {round(self.health1, 1)}/{self.max_health} ⚔️ {self.player2.display_name} {round(self.health2, 1)}/{self.max_health}",
                 inline=False)
 
-        embed.set_image(url="https://media.discordapp.net/attachments/1043107075758231625/1385835502665728060/2025-06-21_12.15.25.png?ex=686603e3&is=6864b263&hm=bf3fb754652cb34e5e1ab7d4de4e86c92c42e41c63127a92f20b3dc6e3bbca17&=&format=webp&quality=lossless&width=926&height=505")
+        # embed.set_image(url="attachment://battle.png")
 
         embed.set_footer(
                  text=f"{self.player1.display_name}把他的雞巴，放進了{self.player2.display_name}的皮炎裡面",
@@ -78,12 +85,14 @@ class BattleView(View):
             self.turn = self.player1
         
         if self.health1 <= 0:
+            self.health1 = 0
             self.stop()
             await interaction.response.edit_message(embed=self.create_embed(), view=None)
             await interaction.followup.send(f"{self.player2.mention} 獲勝！")
             return
         
         if self.health2 <= 0:
+            self.health2 = 0
             self.stop()
             await interaction.response.edit_message(embed=self.create_embed(), view=None)
             await interaction.followup.send(f"{self.player1.mention} 獲勝！")

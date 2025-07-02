@@ -306,14 +306,35 @@ async def battle(ctx, member: discord.Member):
         await ctx.send("你不能挑戰自己。")
         return
 
+    p1_id = ctx.author.id
+    p2_id = member.id
+
+    #check if there is enough cards to battle
+    p1_inventory = users.get(p1_id, {}).get("inventory", [])
+    p2_inventory = users.get(p2_id, {}).get("inventory", [])
+
+    if len(p1_inventory) < 5:
+        await ctx.send(f"{ctx.author.mention} 你必須至少有5張卡才能戰鬥。")
+        return
+
+    if len(p2_inventory) < 5:
+        await ctx.send(f"{member.mention} 必須至少有5張卡才能戰鬥。")
+        return
+
     view = BattleConfirmation(ctx.author, member)
     await ctx.send(f"{member.mention}, {ctx.author.mention} 想要挑戰你，是否接受？", view=view)
 
-    await view.wait()
+    await view.wait() #wait for battle confimation
 
-    if view.battle_accepted:
-        battle_view = BattleView(ctx.author, member)
+    if view.battle_accepted: #create battle view
+        p1_inventory = users[p1_id]["inventory"]
+        p2_inventory = users[p2_id]["inventory"]
+        battle_view = BattleView(ctx.author, member, p1_inventory, p2_inventory)
+        # battle_image = create_battle_image(battle_view.p1_cards, battle_view.p2_cards)
+        for item in battle_view.p1_cards:
+            print(item)
         embed = battle_view.create_embed()
+        # await ctx.send(embed=embed, view=battle_view, file=battle_image)
         await ctx.send(embed=embed, view=battle_view)
 @bot.command()
 async def draw(ctx):

@@ -225,6 +225,32 @@ def resize_and_crop_center(img):
     img_cropped = img_resized.crop((left, top, right, bottom))
     return img_cropped
 
+def create_battle_image(p1_cards, p2_cards):
+    background = Image.new('RGBA', (1000, 500), (0, 0, 0, 0))
+    
+    # Player 1 cards on the left
+    for i, card in enumerate(p1_cards):
+        _, _, _, img_url, _, tier, _ = card
+        response = requests.get(img_url)
+        card_img = Image.open(BytesIO(response.content)).convert("RGBA")
+        card_img = resize_and_crop_center(card_img)
+        card_img.thumbnail((100, 100))
+        background.paste(card_img, (20, i * 110), card_img)
+
+    # Player 2 cards on the right
+    for i, card in enumerate(p2_cards):
+        _, _, _, img_url, _, tier, _ = card
+        response = requests.get(img_url)
+        card_img = Image.open(BytesIO(response.content)).convert("RGBA")
+        card_img = resize_and_crop_center(card_img)
+        card_img.thumbnail((100, 100))
+        background.paste(card_img, (880, i * 110), card_img)
+
+    buffer = BytesIO()
+    background.save(buffer, format="PNG")
+    buffer.seek(0)
+    return discord.File(fp=buffer, filename="battle.png")
+
 def gradient(img, start, end):
     width, height = img.size
     # Create the gradient overlay
