@@ -329,12 +329,5 @@ class InventoryView(View):
                 await interaction.response.edit_message(embed=embed, view=self, attachments=[])
 
     def update_button_states(self):
-        # Disable prev button if on first page
         self.prev_button.disabled = (self.current_page == 0)
-        # Disable next button if on last page
         self.next_button.disabled = (self.current_page >= self.total_pages - 1)
-
-
-
-
-

@@ -6,6 +6,7 @@ from discord.ext import commands
 from sympy import sympify  
 from datetime import datetime, timedelta
 from util import *
+from battle import BattleConfirmation, BattleView
 from dotenv import load_dotenv 
 
 
@@ -162,7 +163,10 @@ async def inv(ctx):
     captain = users[user_id].get("captain")
     view = InventoryView(ctx, inventory, captain)
     embed  = view.get_page_embed()
-    await ctx.send(embed=embed, view=view, file=view.img_file)
+    if view.captain:
+        await ctx.send(embed=embed, view=view, file=view.img_file)
+    else: 
+        await ctx.send(embed=embed, view=view)
 
 @bot.command(aliases=["sc"])
 async def showcase(ctx, name: str, tier_name: str):
@@ -181,7 +185,7 @@ async def showcase(ctx, name: str, tier_name: str):
         embed, img_file = char_embed(name, desc, img, corp, movies, tier)
         await ctx.send(embed=embed, file=img_file)
     else:
-        await ctx.reply(f"找不到卡片 {name} ({tier_name})")
+        await ctx.reply(f"找不到卡片 {name} ({tier_name})", ephemral = True)
 
 @bot.command(aliases=["hc"])
 async def homocaptain(ctx, name: str, tier_name: str):
@@ -200,7 +204,7 @@ async def homocaptain(ctx, name: str, tier_name: str):
         save_count()
         await ctx.reply(f"你已將 **{name} ({captain_char[5]['text']})** 設為你的隊長！")
     else:
-        await ctx.reply(f"找不到卡片 {name} ({tier_name})")
+        await ctx.reply(f"找不到卡片 {name} ({tier_name})", ephemral = True)
 
 @bot.command()
 async def highscore(ctx):
@@ -290,6 +294,22 @@ async def on_message(message):
             pass
 
     await bot.process_commands(message) # also process the message as commands
+
+@bot.command()
+async def battle(ctx, member: discord.Member):
+    if member == ctx.author:
+        await ctx.send("你不能挑戰自己。")
+        return
+
+    view = BattleConfirmation(ctx.author, member)
+    await ctx.send(f"{member.mention}, {ctx.author.mention} 想要挑戰你，是否接受？", view=view)
+
+    await view.wait()
+
+    if view.battle_accepted:
+        battle_view = BattleView(ctx.author, member)
+        embed = battle_view.create_embed()
+        await ctx.send(embed=embed, view=battle_view)
 
 if __name__ == "__main__":
     bot.run(token)
