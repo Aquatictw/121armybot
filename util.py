@@ -4,9 +4,9 @@ import discord
 from discord.ui import View, Button
 import requests
 import csv
-from PIL import Image, ImageDraw, ImageSequence
 from datetime import datetime, timedelta, timezone
-from io import BytesIO, StringIO
+from io import StringIO
+from image_util import * 
 
 url = f"https://docs.google.com/spreadsheets/d/1liKVpqp1I6E-aVjLsv1A3MQnH-48SM7FJxbl0j-FbvI/export?format=csv&gid=0"
 
@@ -124,124 +124,6 @@ def char_embed(name, desc, img, corp, movies, tier):
     embed.add_field(name = "出演作品", value = "\n".join(movies))
 
     return embed, img_file
-
-def char_img(base_img, tier):
-    response = requests.get(base_img)
-    img = Image.open(BytesIO(response.content)).convert("RGBA")
-    img = resize_and_crop_center(img)  # Now it's 640x480
-
-    if tier["text"] =="白金、Semen":
-        img = gradient(img, (255, 255, 255,0), (255, 215, 0, 140))
-    elif tier["text"] =="黑金、雪":
-        img = gradient(img, (255, 255, 255,0), (0, 0, 0, 160))
-
-    border_width = 15
-    width, height = img.size
-
-    # Load overlay image
-    overlay = Image.open(tier["logo"]).convert("RGBA")
-    max_width = width - 2 * border_width
-    max_height = height - 2 * border_width #resize
-    overlay.thumbnail((max_width, max_height), Image.LANCZOS)  # type: ignore
-
-    #if rainbow card
-    if tier["text"] == "彩虹、Ultra HOMO":
-        return rainbow_img(img, overlay)
-
-    img.paste(overlay, (0, 0), overlay)
-
-
-    img_with_border = img.copy()
-    draw = ImageDraw.Draw(img_with_border)
-    draw.rectangle([0, 0, width, border_width], fill=tier["color"]) #top 
-    draw.rectangle([0, height - border_width, width, height], fill=tier["color"]) #bottom
-    draw.rectangle([0, 0, border_width, height], fill=tier["color"]) #left
-    draw.rectangle([width - border_width, 0, width, height], fill=tier["color"]) #right
-
-
-    buffer = BytesIO()
-    img_with_border.save(buffer, format="PNG")
-    buffer.seek(0)
-    img_file = discord.File(fp=buffer, filename="image.png")
-    return img_file 
-
-def rainbow_img(img, logo ):
-    gradient_gif = Image.open("./media/rainbow.gif")
-
-    frames = []
-
-    for frame in ImageSequence.Iterator(gradient_gif):
-
-        base = img.copy()
-        base.paste(logo, (0, 0), logo) #paste logo
-
-        rainbow_frame = frame.convert("RGBA").resize(base.size, Image.LANCZOS)  # type: ignore
-        white_bg = Image.new("RGB", base.size, (255, 255, 255))
-        white_bg.paste(rainbow_frame, (0, 0), rainbow_frame)  # Use rainbow frame as mask
-        
-        base = base.convert("RGB")
-        colored = Image.blend(base, white_bg, 0.3)
-
-        frames.append(colored)
-
-    buffer = BytesIO()
-    frames[0].save(
-        buffer,
-        format="GIF",
-        save_all=True,
-        append_images=frames[1:],
-        duration=gradient_gif.info.get("duration", 100),  # ms per frame
-        loop=0,
-        disposal=2,
-        transparency=0,
-    )
-    buffer.seek(0)
-    return discord.File(fp=buffer, filename="animated.gif")
-
-def resize_and_crop_center(img):
-    src_w, src_h = img.size
-
-    # Compute aspect ratios
-    target_ratio = 640 / 480 
-    src_ratio = src_w / src_h
-
-    if src_ratio > target_ratio:
-        scale_h = 480 
-        scale_w = int(scale_h * src_ratio)
-    else:
-        # Image is too tall or just right
-        scale_w = 640
-        scale_h = int(scale_w / src_ratio)
-
-    # Resize while preserving aspect ratio
-    img_resized = img.resize((scale_w, scale_h), Image.LANCZOS)  # type: ignore  
-
-    # Now center-crop
-    left = (scale_w - 640) // 2
-    top = (scale_h - 480) // 2
-    right = left +640  
-    bottom = top + 480 
-
-    img_cropped = img_resized.crop((left, top, right, bottom))
-    return img_cropped
-
-def gradient(img, start, end):
-    width, height = img.size
-    # Create the gradient overlay
-    gradient = Image.new("RGBA", (width, height))
-    for y in range(height):
-        ratio = y / height
-        r = int(start[0] * (1 - ratio) + end[0] * ratio)
-        g = int(start[1] * (1 - ratio) + end[1] * ratio)
-        b = int(start[2] * (1 - ratio) + end[2] * ratio)
-        a = int(start[3] * (1 - ratio) + end[3] * ratio)
-        
-        for x in range(width):
-            gradient.putpixel((x, y), (r, g, b, a))
-
-    # Blend it over the base image
-    result = Image.alpha_composite(img, gradient)
-    return result
 
 ITEMS_PER_PAGE = 10
 

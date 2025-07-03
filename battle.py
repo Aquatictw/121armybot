@@ -4,7 +4,7 @@ from discord.ui import View, Button
 from PIL import Image, ImageDraw
 from io import BytesIO
 import requests
-from util import resize_and_crop_center
+from image_util import resize_to_width
 
 try:
     from PIL import ImageFont
@@ -22,7 +22,7 @@ def create_battle_image(p1_cards, p2_cards):
         try:
             response = requests.get(img_url)
             card_img = Image.open(BytesIO(response.content)).convert("RGBA")
-            card_img = resize_and_crop_center(card_img)
+            card_img = resize_to_width(card_img)
             card_img.thumbnail((200, 200)) # Increased thumbnail size
             
             # Calculate position for image and text
@@ -43,7 +43,7 @@ def create_battle_image(p1_cards, p2_cards):
         try:
             response = requests.get(img_url)
             card_img = Image.open(BytesIO(response.content)).convert("RGBA")
-            card_img = resize_and_crop_center(card_img)
+            card_img = resize_to_width(card_img)
             card_img.thumbnail((200, 200)) # Increased thumbnail size
 
             # Calculate position for image and text
