@@ -185,7 +185,7 @@ async def homo(ctx):
         await handle_roll(ctx)
 @bot.command()
 async def poop(ctx):
-    ctx.send("https://wiki.yjsnpi.nu/w/images/a/a4/%E8%B8%8A%E3%82%8A%E9%A3%9F%E3%81%84.gif")
+    await ctx.send("https://wiki.yjsnpi.nu/w/images/a/a4/%E8%B8%8A%E3%82%8A%E9%A3%9F%E3%81%84.gif")
 
 @bot.command(aliases=["myhomo", "mh"])
 async def inv(ctx):
