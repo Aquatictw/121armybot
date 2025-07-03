@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from util import *
 from battle import BattleConfirmation, BattleView, create_battle_image
 from dotenv import load_dotenv
-
+print("cock")
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
 
