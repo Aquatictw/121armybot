@@ -335,6 +335,15 @@ async def purge(ctx):
 
 
 @bot.command()
+async def test_rainbow_card(ctx):
+    character = get_random_char()
+    corp, name, desc, img, movies, _ = character
+    rainbow_tier = tiers["Rainbow"]
+    embed, img_file = char_embed(name, desc, img, corp, movies, rainbow_tier)
+    await ctx.send(embed=embed, file=img_file)
+
+
+@bot.command()
 async def help(ctx):
     embed = discord.Embed(
         title="⚙️迫真指揮官使用手冊⚙️",
