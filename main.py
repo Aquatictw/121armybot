@@ -6,7 +6,12 @@ import re
 import json
 import os
 import random
+<<<<<<< HEAD
 from sympy import sympify
+=======
+from discord.ext import commands
+from sympy import sympify  
+>>>>>>> jingshi_branch
 from datetime import datetime, timedelta
 from util import *
 from battle import BattleConfirmation, BattleView, create_battle_image
@@ -473,13 +478,17 @@ async def battle(ctx, member: discord.Member):
         battle_image = create_battle_image(battle_view.p1_cards, battle_view.p2_cards)
         embed = battle_view.create_embed()
         await ctx.send(embed=embed, view=battle_view)
+<<<<<<< HEAD
         await ctx.send(file=battle_image)
 
 
+=======
+>>>>>>> jingshi_branch
 @bot.command()
 async def draw(ctx):
     user_id = ctx.author.id
     inventory = users[user_id].get("inventory", [])
+<<<<<<< HEAD
     users[user_id]["deck"] = []
     index = random.randrange(0, len(inventory) - 1)
     users[user_id]["deck"].append(inventory[index])
@@ -494,5 +503,19 @@ async def mydeck(ctx, member=discord.Member):
     user_id = ctx.author.id
 
 
+=======
+    user_deck = {'deck': []}
+    users[user_id].append(user_deck)
+    index = random().randrange(0, len(inventory) - 1)
+    users[user_id]['deck'].append(inventory[index])
+    deck = users.get("deck", [])
+    view = InventoryView(ctx, deck)
+    embed  = view.get_page_embed()
+    await ctx.send(embed=embed, view=view)
+@bot.command(aliases = ["md"])
+async def mydeck(ctx, member = discord.Member):
+    user_id = ctx.author.id
+    
+>>>>>>> jingshi_branch
 if __name__ == "__main__":
     bot.run(token)  # pyright: ignore
