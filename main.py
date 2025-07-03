@@ -1,5 +1,6 @@
 import discord
-#fuck
+
+# fuck
 from discord import app_commands
 from discord.ext import commands
 from typing import List
@@ -12,6 +13,7 @@ from datetime import datetime, timedelta
 from util import *
 from battle import BattleConfirmation, BattleView, create_battle_image
 from dotenv import load_dotenv
+
 print("cock")
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
@@ -183,9 +185,15 @@ async def homo(ctx):
         await ctx.reply(embed=embed)
     else:
         await handle_roll(ctx)
+
+
 @bot.command()
 async def poop(ctx):
-    await ctx.send("https://wiki.yjsnpi.nu/w/images/a/a4/%E8%B8%8A%E3%82%8A%E9%A3%9F%E3%81%84.gif")
+    await ctx.send(
+        "https://wiki.yjsnpi.nu/w/images/a/a4/%E8%B8%8A%E3%82%8A%E9%A3%9F%E3%81%84.gif"
+    )
+    await ctx.reply("# 你脫雪了")
+
 
 @bot.command(aliases=["myhomo", "mh"])
 async def inv(ctx):
