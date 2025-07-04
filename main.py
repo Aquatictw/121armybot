@@ -247,7 +247,7 @@ async def homocaptain(ctx: commands.Context, name: str, tier_name: str):
     if captain_char:
         users[user_id]["captain"] = captain_char
         save_count()
-        await ctx.reply(f"你已將 **{name} ({captain_char[5]['text']})** 設為你的隊長！")
+        await ctx.reply(f"你已將 **{name} ({captain_char[5]["text"]})** 設為你的隊長！")
     else:
         await ctx.reply(f"找不到卡片 {name} ({tier_name})")
 
@@ -484,7 +484,100 @@ async def play_audio_loop():
     except Exception as e:
         print(f"[Audio Error] {e}")
 
+@bot.command(aliases=["merge"])
+async def lvlup(ctx, card_name: str, tier_name: str):
+    user_id = ctx.author.id
+    if user_id not in users:
+        await ctx.send("你沒有任何卡片。")
+        return
 
+    inventory = users[user_id].get("inventory", [])
+
+    tier_name_map = {
+        "Bronze": "男銅",
+        "Silver": "手銀",
+        "Gold": "射金",
+        "WhiteGold": "白金、Semen",
+        "BlackGold": "黑金、雪",
+        "Rainbow": "彩虹、Ultra HOMO"
+    }
+    actual_tier_name = tier_name_map.get(tier_name, tier_name)
+
+    # Find the card to level up
+    card_to_lvlup = None
+    for card in inventory:
+        if card[1] == card_name and card[5]["text"] == actual_tier_name:
+            card_to_lvlup = card
+            break
+
+    if card_to_lvlup is None:
+        await ctx.send(f"你沒有叫做 **{card_name} ({tier_name})** 的卡片。")
+        return
+
+    if card_to_lvlup[6] < 5:
+        await ctx.send(f"你的 **{card_name} ({tier_name})** 卡片數量少於五張，無法合成。")
+        return
+
+    # Tier promotion logic
+    promotion_tiers = ["男銅", "手銀", "射金", "白金、Semen", "黑金、雪", "彩虹、Ultra HOMO"]
+    
+    current_tier_index = -1
+    try:
+        current_tier_index = promotion_tiers.index(actual_tier_name)
+    except ValueError:
+        await ctx.send(f"未知的等級: {tier_name}")
+        return
+
+    if current_tier_index == len(promotion_tiers) - 1:
+        await ctx.send("這張卡已經是最高等級了！")
+        return
+
+    next_tier_name = promotion_tiers[current_tier_index + 1]
+
+    # Subtract 5 cards
+    card_to_lvlup[6] -= 5
+    # if count becomes 0, remove the card from inventory
+    if card_to_lvlup[6] == 0:
+        inventory.remove(card_to_lvlup)
+
+    # Get the full tier dictionary for the next tier
+    next_tier_info = None
+    for tier_key, tier_value in tiers.items():
+        if tier_value["text"] == next_tier_name:
+            next_tier_info = tier_value
+            break
+    
+    if not next_tier_info:
+        # This should not happen if promotion_tiers is correct
+        await ctx.send("升級時發生內部錯誤。")
+        return
+
+    # Check if user already has the higher tier card
+    higher_tier_card = None
+    for card in inventory:
+        if card[1] == card_name and card[5]["text"] == next_tier_name:
+            higher_tier_card = card
+            break
+
+    if higher_tier_card:
+        higher_tier_card[6] += 1
+    else:
+        # Create new card for the higher tier
+        corp, _, desc, img, movies = get_card_by_name(card_name)
+        if corp is None:
+            await ctx.send(f"找不到卡片 '{card_name}' 的基本資訊。")
+            # Revert the change for safety
+            card_to_lvlup[6] += 5
+            if card_to_lvlup[6] == 5 and card_to_lvlup not in inventory:
+                inventory.append(card_to_lvlup)
+            return
+
+        new_card = [corp, card_name, desc, img, movies, next_tier_info, 1]
+        inventory.append(new_card)
+
+    save_count()
+    await ctx.send(f"成功將 5 張 **{card_name} ({tier_name})** 合成為 1 張 **{card_name} ({next_tier_name})**！")
+    
 @bot.command()
 async def battle(ctx, member: discord.Member):
     if member == ctx.author:
