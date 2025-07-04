@@ -557,7 +557,7 @@ async def lvlupall(ctx):
 @bot.command()
 async def battle(ctx, member: discord.Member):
     if member == ctx.author:
-        await ctx.send("你不能挑戰自己。")
+        await ctx.reply("你不能挑戰自己。")
         return
 
     p1_id = ctx.author.id
@@ -585,6 +585,7 @@ async def battle(ctx, member: discord.Member):
         p1_inventory = users[p1_id]["inventory"]
         p2_inventory = users[p2_id]["inventory"]
         battle_view = BattleView(ctx.author, member, p1_inventory, p2_inventory)
+
         battle_image = create_table_image(
             battle_view.p1_table,
             battle_view.p2_table,
@@ -593,8 +594,6 @@ async def battle(ctx, member: discord.Member):
         )
         embed = battle_view.create_embed()
         await ctx.send(embed=embed, view=battle_view, file=battle_image)
-        hand_image = create_hand_image(battle_view.p1_hand)
-        await ctx.send(file=hand_image)
 
 
 @bot.command()
