@@ -216,8 +216,11 @@ async def inv(ctx):
 @bot.command(aliases=["ct"])
 async def checktime(ctx):
     user_id = ctx.author.id
-    _, _, delta = have_time_passed(users[user_id]["last_reset"], 2)
-    await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
+    _, flag, delta = have_time_passed(users[user_id]["last_reset"], 2)
+    if not flag:
+        await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
+    else:
+        await ctx.send(f"{ctx.author.mention} 你可以Roll了!")
 
 
 @bot.hybrid_command(
@@ -584,7 +587,7 @@ async def lvlup(ctx, card_name: str, tier_name: str):
 
     save_count()
     await ctx.send(f"成功將 5 張 **{card_name} ({tier_name})** 合成為 1 張 **{card_name} ({next_tier_name})**！")
-    
+
 @lvlup.autocomplete("card_name")
 async def lvlup_name_autocomplete(
     interaction: discord.Interaction,
