@@ -216,8 +216,11 @@ async def inv(ctx):
 @bot.command(aliases=["ct"])
 async def checktime(ctx):
     user_id = ctx.author.id
-    _, _, delta = have_time_passed(users[user_id]["last_reset"], 2)
-    await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
+    _, flag, delta = have_time_passed(users[user_id]["last_reset"], 2)
+    if not flag:
+        await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
+    else:
+        await ctx.send(f"{ctx.author.mention} 你可以Roll了!")
 
 
 @bot.hybrid_command(
@@ -247,13 +250,13 @@ async def homocaptain(ctx: commands.Context, name: str, tier_name: str):
     if captain_char:
         users[user_id]["captain"] = captain_char
         save_count()
-        await ctx.reply(f"你已將 **{name} ({captain_char[5]['text']})** 設為你的隊長！")
+        await ctx.reply(f"你已將 **{name} ({captain_char[5]["text"]})** 設為你的隊長！")
     else:
         await ctx.reply(f"找不到卡片 {name} ({tier_name})")
 
 
 @homocaptain.autocomplete("name")
-async def card_name_autocomplete(
+async def hc_name_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ) -> List[app_commands.Choice[str]]:
@@ -276,7 +279,7 @@ async def card_name_autocomplete(
 
 
 @homocaptain.autocomplete("tier_name")
-async def tier_name_autocomplete(
+async def hc_tier_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ) -> List[app_commands.Choice[str]]:
@@ -485,6 +488,114 @@ async def play_audio_loop():
         print(f"[Audio Error] {e}")
 
 
+@bot.hybrid_command(
+    name="lvlup",
+    with_app_command=True,
+    description="升級卡片",
+    aliases=["merge"],
+)
+@app_commands.guilds(discord.Object(id=guild_id))
+async def lvlup(ctx, card_name: str, tier_name: str):
+    user_id = ctx.author.id
+    if user_id not in users:
+        await ctx.send("你沒有任何卡片。")
+        return
+
+    inventory = users[user_id].get("inventory", [])
+    promotion_order = list(tiers.keys())
+
+    if tier_name not in promotion_order:
+        await ctx.send(f"未知的等級: {tier_name}")
+        return
+
+    actual_tier_name = tiers[tier_name]["text"]
+
+    # Find the card to level up
+    card_to_lvlup = None
+    for card in inventory:
+        if card[1] == card_name and card[5]["text"] == actual_tier_name:
+            card_to_lvlup = card
+            break
+
+    if card_to_lvlup is None:
+        await ctx.reply(f"你沒有 **{card_name} ({tier_name})**，你又在唬幹洨")
+        return
+
+    current_tier_index = promotion_order.index(tier_name)
+
+    if current_tier_index == len(promotion_order) - 1:
+        await ctx.send("你他媽彩虹卡是要升個屌")
+        return
+
+    next_tier_index = promotion_order[current_tier_index + 1]
+    next_tier_info = tiers[next_tier_index]
+
+    if card_to_lvlup[6] < tiers[tier_name]["lvlup_req"]:
+        await ctx.send(
+            f"你需要 {tiers[tier_name]['lvlup_req']} 張 **{card_name} ({tier_name})** 才能合成為 1 張 **{card_name} ({next_tier_index})**！"
+        )
+        return
+
+    card_to_lvlup[6] -= tiers[tier_name]["lvlup_req"]  # Subtract cards
+    if card_to_lvlup[6] == 0:  # Remove
+        inventory.remove(card_to_lvlup)
+
+    # Check if user already has the higher tier card
+    higher_tier_card = None
+    for card in inventory:
+        if card[1] == card_name and card[5]["text"] == next_tier_info["text"]:
+            higher_tier_card = card
+            break
+
+    if higher_tier_card:
+        higher_tier_card[6] += 1
+    else:
+        # Create new card for the higher tier
+        corp, _, desc, img, movies = get_card_by_name(card_name)
+        new_card = [corp, card_name, desc, img, movies, next_tier_info, 1]
+        inventory.append(new_card)
+
+    save_count()
+    await ctx.send(
+        f"成功將 {tiers[tier_name]['lvlup_req']} 張 **{card_name} ({tier_name})** 合成為 1 張 **{card_name} ({next_tier_index})**！"
+    )
+
+
+@lvlup.autocomplete("card_name")
+async def lvlup_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+
+    card_names = [row[3] for row in rows]
+    filtered_card_names = [
+        card_name for card_name in card_names if current.lower() in card_name.lower()
+    ]
+    return [
+        app_commands.Choice(name=card_name, value=card_name)
+        for card_name in filtered_card_names[
+            :25
+        ]  # return max 25 completions (discord limit)
+    ]
+
+
+@lvlup.autocomplete("tier_name")
+async def lvlup_tier_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+
+    filtered_card_names = [
+        tier for tier in list(tiers.keys()) if current.lower() in tier.lower()
+    ]
+    return [
+        app_commands.Choice(name=card_name, value=card_name)
+        for card_name in filtered_card_names[
+            :25
+        ]  # return max 25 completions (discord limit)
+    ]
+
+
 @bot.command()
 async def battle(ctx, member: discord.Member):
     if member == ctx.author:
@@ -540,6 +651,7 @@ async def draw(ctx):
     embed = view.get_page_embed()
     embed = view.get_page_embed()
     await ctx.send(embed=embed, view=view)
-    
+
+
 if __name__ == "__main__":
     bot.run(token)  # pyright: ignore

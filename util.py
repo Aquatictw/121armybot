@@ -17,6 +17,7 @@ tiers = {
         "logo": "./media/bronze.png",
         "text": "男銅",
         "emoji": "<:tokugawa:1228747556306161774>",
+        "lvlup_req": 3,
     },
     "Silver": {
         "color": "#c0c0c0",
@@ -24,6 +25,7 @@ tiers = {
         "logo": "./media/silver.png",
         "text": "手銀",
         "emoji": "<:tokugawa_silver:1389281436527235174>",
+        "lvlup_req": 5,
     },
     "Gold": {
         "color": "#ffd700",
@@ -31,6 +33,7 @@ tiers = {
         "logo": "./media/gold.png",
         "text": "射金",
         "emoji": "<:tokugawa_gold:1389281491229474896>",
+        "lvlup_req": 8,
     },
     "WhiteGold": {
         "color": "#FFFFFF",
@@ -38,6 +41,7 @@ tiers = {
         "logo": "./media/whitegold.png",
         "text": "白金、Semen",
         "emoji": "<:tokugawa_whitegold:1389281538528641116>",
+        "lvlup_req": 8,
     },
     "BlackGold": {
         "color": "#000000",
@@ -45,6 +49,7 @@ tiers = {
         "logo": "./media/blackgold.png",
         "text": "黑金、雪",
         "emoji": "<:tokugawa_blackgold:1389281576936017950>",
+        "lvlup_req": 10,
     },
     "Rainbow": {
         "color": "#FFFFFF",
