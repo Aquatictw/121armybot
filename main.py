@@ -586,13 +586,15 @@ async def battle(ctx, member: discord.Member):
         p2_inventory = users[p2_id]["inventory"]
         battle_view = BattleView(ctx.author, member, p1_inventory, p2_inventory)
         battle_image = create_table_image(
-            battle_view.p1_cards,
-            battle_view.p2_cards,
+            battle_view.p1_table,
+            battle_view.p2_table,
             ctx.author.display_name,
             member.display_name,
         )
         embed = battle_view.create_embed()
-        message = await ctx.send(embed=embed, view=battle_view, file=battle_image)
+        await ctx.send(embed=embed, view=battle_view, file=battle_image)
+        hand_image = create_hand_image(battle_view.p1_hand)
+        await ctx.send(file=hand_image)
 
 
 @bot.command()

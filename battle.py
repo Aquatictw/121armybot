@@ -1,7 +1,7 @@
 import discord
 from random import uniform, sample
 from discord.ui import View, Button
-from image_util import create_table_image
+from image_util import create_table_image, create_hand_image
 
 
 class BattleConfirmation(View):
@@ -40,8 +40,10 @@ class BattleView(View):
         super().__init__()
         self.player1 = player1
         self.player2 = player2
-        self.p1_cards = sample(p1_inventory, 6)  # 隨機抽取5張卡排
-        self.p2_cards = sample(p2_inventory, 4)
+        self.p1_table = sample(p1_inventory, 6)
+        self.p2_table = sample(p2_inventory, 0)
+        self.p1_hand = sample(p1_inventory, 5)
+        self.p2_hand = sample(p2_inventory, 5)
         self.max_health = 114
         self.health1 = self.max_health
         self.round = 1
@@ -86,11 +88,13 @@ class BattleView(View):
 
         return embed
 
-    @discord.ui.button(label="攻擊", style=discord.ButtonStyle.primary)
-    async def attack(self, interaction: discord.Interaction, button: Button):
+    @discord.ui.button(label="更新", style=discord.ButtonStyle.primary)
+    async def update(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.turn:
             await interaction.response.send_message("阿你是在按三小。", ephemeral=True)
             return
+
+        await interaction.response.defer()
 
         random_float = uniform(0.8, 2.5)
         damage = round(random_float, 1)
@@ -105,7 +109,7 @@ class BattleView(View):
         if self.health1 <= 0:  # player1 dead
             self.health1 = 0
             self.stop()
-            await interaction.response.edit_message(
+            await interaction.edit_original_response(
                 embed=self.create_embed(), view=None
             )
             await interaction.followup.send(f"{self.player2.mention} 獲勝！")
@@ -114,7 +118,7 @@ class BattleView(View):
         if self.health2 <= 0:  # player2 dead
             self.health2 = 0
             self.stop()
-            await interaction.response.edit_message(
+            await interaction.edit_original_response(
                 embed=self.create_embed(), view=None
             )
             await interaction.followup.send(f"{self.player1.mention} 獲勝！")
@@ -122,11 +126,14 @@ class BattleView(View):
 
         self.round += 1
         battle_image = create_table_image(
-            self.p1_cards,
-            self.p2_cards,
+            self.p1_table,
+            self.p2_table,
             self.player1.display_name,
             self.player2.display_name,
         )
-        await interaction.response.edit_message(
-            embed=self.create_embed(), attachments=[battle_image]
+        hand_image = create_hand_image(
+            self.p1_hand if self.turn == self.player1 else self.p2_hand
+        )
+        await interaction.edit_original_response(
+            embed=self.create_embed(), attachments=[battle_image, hand_image]
         )

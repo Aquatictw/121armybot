@@ -52,7 +52,7 @@ def char_img(base_img, tier):
     overlay = Image.open(tier["logo"]).convert("RGBA")
     max_width = width - 2 * border_width
     max_height = height - 2 * border_width
-    overlay.thumbnail((max_width, max_height), Image.LANCZOS)
+    overlay.thumbnail((max_width, max_height), Image.LANCZOS)  # type: ignore
 
     # If rainbow card
     if tier["text"] == "彩虹、Ultra HOMO":
@@ -126,7 +126,7 @@ def rainbow_img(img, logo):
 def resize_to_width(img, target_width=640):
     src_w, src_h = img.size
     target_height = int(src_h * (target_width / src_w))
-    img_resized = img.resize((target_width, target_height), Image.LANCZOS)
+    img_resized = img.resize((target_width, target_height), Image.LANCZOS)  # type: ignore
     return img_resized
 
 
@@ -160,13 +160,59 @@ def _process_cards(cards):
         _, name, _, img_url, _, tier = card[:6]
         try:
             discord_file = char_img(img_url, tier)
-            card_img = Image.open(discord_file.fp).convert("RGBA")
+            card_img = Image.open(discord_file.fp).convert("RGBA")  # type: ignore
             card_img.thumbnail((200, 200))
             processed_cards.append((card_img, name))
             total_height += card_img.height
         except Exception as e:
             print(f"Error processing image for card: {name} - {e}")
     return processed_cards, total_height
+
+
+def create_hand_image(hand_cards):
+    CARD_WIDTH = 150
+    CARD_HEIGHT = 200
+    OVERLAP = 50
+    PADDING = 20
+
+    # Load and resize deck image
+    deck_img = Image.open("./media/deck.png").convert("RGBA")
+    deck_img.thumbnail((CARD_WIDTH, CARD_HEIGHT))
+
+    # Calculate total width
+    total_width = (
+        PADDING * 2
+        + (len(hand_cards) - 1) * (CARD_WIDTH - OVERLAP)
+        + CARD_WIDTH
+        + PADDING
+        + deck_img.width
+    )
+    image_height = CARD_HEIGHT + PADDING * 2
+
+    # Create background
+    background = Image.new("RGBA", (total_width, image_height), (0, 0, 0, 0))
+
+    # Process and paste hand cards
+    x_offset = PADDING
+    for card_data in hand_cards:
+        _, _, _, img_url, _, tier = card_data[:6]
+        try:
+            discord_file = char_img(img_url, tier)
+            card_img = Image.open(discord_file.fp).convert("RGBA")
+            card_img.thumbnail((CARD_WIDTH, CARD_HEIGHT))
+            background.paste(card_img, (x_offset, PADDING), card_img)
+            x_offset += CARD_WIDTH - OVERLAP
+        except Exception as e:
+            print(f"Error processing image for card: {e}")
+
+    # Paste deck image
+    deck_x = x_offset + OVERLAP + PADDING
+    background.paste(deck_img, (deck_x, PADDING), deck_img)
+
+    buffer = BytesIO()
+    background.save(buffer, format="PNG")
+    buffer.seek(0)
+    return discord.File(fp=buffer, filename="hand.png")
 
 
 def create_table_image(p1_cards, p2_cards, player1_name, player2_name):
