@@ -4,12 +4,27 @@ from discord.ui import View, Button
 from image_util import create_table_image, create_hand_image
 
 
+class HandView(View):
+    def __init__(self, hand):
+        super().__init__()
+        self.hand = hand
+        # Framework for buttons to be added later
+
+    @discord.ui.button(label="抽卡", style=discord.ButtonStyle.primary)
+    async def withdraw(self, interaction: discord.Interaction, button: Button):
+        hand_image = create_hand_image(self.hand)
+        await interaction.edit_original_response(
+            content="你的手牌:", attachments=[hand_image]
+        )
+
+
 class BattleConfirmation(View):
     def __init__(self, challenger, challenged):
         super().__init__()
         self.challenger = challenger
         self.challenged = challenged
         self.battle_accepted = False
+        self.interaction = None
 
     @discord.ui.button(label="接受", style=discord.ButtonStyle.success)
     async def accept(self, interaction: discord.Interaction, button: Button):
@@ -20,6 +35,7 @@ class BattleConfirmation(View):
             return
 
         self.battle_accepted = True
+        self.interaction = interaction
         self.stop()
         await interaction.response.defer()
 
@@ -31,7 +47,7 @@ class BattleConfirmation(View):
 
         self.stop()
         await interaction.response.send_message(
-            f"{self.challenged.mention} 拒絕了 {self.challenger.mention} 的挑戰。"
+            f"{self.challenged.mention} 拒絕�� {self.challenger.mention} 的挑戰。"
         )
 
 
@@ -40,8 +56,8 @@ class BattleView(View):
         super().__init__()
         self.player1 = player1
         self.player2 = player2
-        self.p1_table = sample(p1_inventory, 6)
-        self.p2_table = sample(p2_inventory, 0)
+        self.p1_table = []
+        self.p2_table = []
         self.p1_hand = sample(p1_inventory, 5)
         self.p2_hand = sample(p2_inventory, 5)
         self.max_health = 114
@@ -96,14 +112,9 @@ class BattleView(View):
 
         await interaction.response.defer()
 
-        random_float = uniform(0.8, 2.5)
-        damage = round(random_float, 1)
-
         if self.turn == self.player1:
-            self.health2 -= damage
             self.turn = self.player2
         else:
-            self.health1 -= damage
             self.turn = self.player1
 
         if self.health1 <= 0:  # player1 dead
@@ -131,9 +142,6 @@ class BattleView(View):
             self.player1.display_name,
             self.player2.display_name,
         )
-        hand_image = create_hand_image(
-            self.p1_hand if self.turn == self.player1 else self.p2_hand
-        )
         await interaction.edit_original_response(
-            embed=self.create_embed(), attachments=[battle_image, hand_image]
+            embed=self.create_embed(), attachments=[battle_image]
         )
