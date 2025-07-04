@@ -4,6 +4,7 @@ from discord.ext import commands, tasks
 from typing import List
 import re
 import json
+import copy
 import os
 import random
 from sympy import sympify
@@ -642,8 +643,10 @@ async def battle(ctx, member: discord.Member):
     await view.wait()  # wait for battle confimation
 
     if view.battle_accepted:  # create battle view
-        p1_inventory = users[p1_id]["inventory"]
-        p2_inventory = users[p2_id]["inventory"]
+        p1_inventory = copy.deepcopy(
+            users[p1_id]["inventory"]
+        )  # deep copy to prevent altering inventory
+        p2_inventory = copy.deepcopy(users[p2_id]["inventory"])
         battle_view = BattleView(ctx.author, member, p1_inventory, p2_inventory)
 
         battle_image = create_table_image(
