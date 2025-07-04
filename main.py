@@ -41,6 +41,8 @@ with open("users.json", "r") as f:
             d["inventory"] = []  # fallback
         if "captain" not in d:
             d["captain"] = None
+        if "deck" not in d:
+            d["deck"] = []
     users = {int(k): v for k, v in data.items()}
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
@@ -528,20 +530,16 @@ async def battle(ctx, member: discord.Member):
 async def draw(ctx):
     user_id = ctx.author.id
     inventory = users[user_id].get("inventory", [])
-    user_deck = {"deck": []}
-    users[user_id].append(user_deck)
+
+    users[user_id]["deck"] = []  # clear inventory
     index = random.randrange(0, len(inventory) - 1)
-    users[user_id]["deck"].append(inventory[index])
-    deck = users.get("deck", [])
+    users[user_id]["deck"].append(inventory[index])  # add the random card
+
+    deck = users[user_id].get("deck", [])
     view = InventoryView(ctx, deck)
     embed = view.get_page_embed()
+    embed = view.get_page_embed()
     await ctx.send(embed=embed, view=view)
-
-
-@bot.command(aliases=["md"])
-async def mydeck(ctx, member=discord.Member):
-    user_id = ctx.author.id
-
-
+    
 if __name__ == "__main__":
     bot.run(token)  # pyright: ignore
