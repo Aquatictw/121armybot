@@ -221,6 +221,11 @@ async def checktime(ctx):
         await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
     else:
         await ctx.send(f"{ctx.author.mention} 你可以Roll了!")
+    _, flag, delta = have_time_passed(users[user_id]["last_reset"], 2)
+    if not flag:
+        await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
+    else:
+        await ctx.send(f"{ctx.author.mention} 你可以Roll了!")
 
 
 @bot.hybrid_command(
