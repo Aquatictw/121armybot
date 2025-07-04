@@ -216,8 +216,11 @@ async def inv(ctx):
 @bot.command(aliases=["ct"])
 async def checktime(ctx):
     user_id = ctx.author.id
-    _, _, delta = have_time_passed(users[user_id]["last_reset"], 2)
-    await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
+    _, flag, delta = have_time_passed(users[user_id]["last_reset"], 2)
+    if not flag:
+        await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
+    else:
+        await ctx.send(f"{ctx.author.mention} 你可以Roll了!")
 
 
 @bot.hybrid_command(
@@ -485,6 +488,19 @@ async def play_audio_loop():
         print(f"[Audio Error] {e}")
 
 @bot.command(aliases=["merge"])
+async def lvlup(ctx, card_name: str, tier_name: str):
+    user_id = ctx.author.id
+    if user_id not in users:
+        await ctx.send("你沒有任何卡片。")
+        return
+
+@bot.hybrid_command(
+    name="lvlup",
+    with_app_command=True,
+    description="升級卡片",
+    aliases=["merge"],
+)
+@app_commands.guilds(discord.Object(id=guild_id))
 async def lvlup(ctx, card_name: str, tier_name: str):
     user_id = ctx.author.id
     if user_id not in users:
