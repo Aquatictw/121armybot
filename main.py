@@ -256,7 +256,7 @@ async def homocaptain(ctx: commands.Context, name: str, tier_name: str):
 
 
 @homocaptain.autocomplete("name")
-async def card_name_autocomplete(
+async def hc_name_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ) -> List[app_commands.Choice[str]]:
@@ -279,7 +279,7 @@ async def card_name_autocomplete(
 
 
 @homocaptain.autocomplete("tier_name")
-async def tier_name_autocomplete(
+async def hc_tier_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ) -> List[app_commands.Choice[str]]:
@@ -487,12 +487,6 @@ async def play_audio_loop():
     except Exception as e:
         print(f"[Audio Error] {e}")
 
-@bot.command(aliases=["merge"])
-async def lvlup(ctx, card_name: str, tier_name: str):
-    user_id = ctx.author.id
-    if user_id not in users:
-        await ctx.send("你沒有任何卡片。")
-        return
 
 @bot.hybrid_command(
     name="lvlup",
@@ -508,16 +502,13 @@ async def lvlup(ctx, card_name: str, tier_name: str):
         return
 
     inventory = users[user_id].get("inventory", [])
+    promotion_order = list(tiers.keys())
 
-    tier_name_map = {
-        "Bronze": "男銅",
-        "Silver": "手銀",
-        "Gold": "射金",
-        "WhiteGold": "白金、Semen",
-        "BlackGold": "黑金、雪",
-        "Rainbow": "彩虹、Ultra HOMO"
-    }
-    actual_tier_name = tier_name_map.get(tier_name, tier_name)
+    if tier_name not in promotion_order:
+        await ctx.send(f"未知的等級: {tier_name}")
+        return
+
+    actual_tier_name = tiers[tier_name]["text"]
 
     # Find the card to level up
     card_to_lvlup = None
@@ -527,51 +518,32 @@ async def lvlup(ctx, card_name: str, tier_name: str):
             break
 
     if card_to_lvlup is None:
-        await ctx.send(f"你沒有叫做 **{card_name} ({tier_name})** 的卡片。")
+        await ctx.reply(f"你沒有 **{card_name} ({tier_name})**，你又在唬幹洨")
         return
 
-    if card_to_lvlup[6] < 5:
-        await ctx.send(f"你的 **{card_name} ({tier_name})** 卡片數量少於五張，無法合成。")
+    current_tier_index = promotion_order.index(tier_name)
+
+    if current_tier_index == len(promotion_order) - 1:
+        await ctx.send("你他媽彩虹卡是要升個屌")
         return
 
-    # Tier promotion logic
-    promotion_tiers = ["男銅", "手銀", "射金", "白金、Semen", "黑金、雪", "彩虹、Ultra HOMO"]
-    
-    current_tier_index = -1
-    try:
-        current_tier_index = promotion_tiers.index(actual_tier_name)
-    except ValueError:
-        await ctx.send(f"未知的等級: {tier_name}")
+    next_tier_index = promotion_order[current_tier_index + 1]
+    next_tier_info = tiers[next_tier_index]
+
+    if card_to_lvlup[6] < tiers[tier_name]["lvlup_req"]:
+        await ctx.send(
+            f"你需要 {tiers[tier_name]['lvlup_req']} 張 **{card_name} ({tier_name})** 才能合成為 1 張 **{card_name} ({next_tier_index})**！"
+        )
         return
 
-    if current_tier_index == len(promotion_tiers) - 1:
-        await ctx.send("這張卡已經是最高等級了！")
-        return
-
-    next_tier_name = promotion_tiers[current_tier_index + 1]
-
-    # Subtract 5 cards
-    card_to_lvlup[6] -= 5
-    # if count becomes 0, remove the card from inventory
-    if card_to_lvlup[6] == 0:
+    card_to_lvlup[6] -= tiers[tier_name]["lvlup_req"]  # Subtract cards
+    if card_to_lvlup[6] == 0:  # Remove
         inventory.remove(card_to_lvlup)
-
-    # Get the full tier dictionary for the next tier
-    next_tier_info = None
-    for tier_key, tier_value in tiers.items():
-        if tier_value["text"] == next_tier_name:
-            next_tier_info = tier_value
-            break
-    
-    if not next_tier_info:
-        # This should not happen if promotion_tiers is correct
-        await ctx.send("升級時發生內部錯誤。")
-        return
 
     # Check if user already has the higher tier card
     higher_tier_card = None
     for card in inventory:
-        if card[1] == card_name and card[5]["text"] == next_tier_name:
+        if card[1] == card_name and card[5]["text"] == next_tier_info["text"]:
             higher_tier_card = card
             break
 
@@ -580,20 +552,50 @@ async def lvlup(ctx, card_name: str, tier_name: str):
     else:
         # Create new card for the higher tier
         corp, _, desc, img, movies = get_card_by_name(card_name)
-        if corp is None:
-            await ctx.send(f"找不到卡片 '{card_name}' 的基本資訊。")
-            # Revert the change for safety
-            card_to_lvlup[6] += 5
-            if card_to_lvlup[6] == 5 and card_to_lvlup not in inventory:
-                inventory.append(card_to_lvlup)
-            return
-
         new_card = [corp, card_name, desc, img, movies, next_tier_info, 1]
         inventory.append(new_card)
 
     save_count()
-    await ctx.send(f"成功將 5 張 **{card_name} ({tier_name})** 合成為 1 張 **{card_name} ({next_tier_name})**！")
-    
+    await ctx.send(
+        f"成功將 {tiers[tier_name]['lvlup_req']} 張 **{card_name} ({tier_name})** 合成為 1 張 **{card_name} ({next_tier_index})**！"
+    )
+
+
+@lvlup.autocomplete("card_name")
+async def lvlup_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+
+    card_names = [row[3] for row in rows]
+    filtered_card_names = [
+        card_name for card_name in card_names if current.lower() in card_name.lower()
+    ]
+    return [
+        app_commands.Choice(name=card_name, value=card_name)
+        for card_name in filtered_card_names[
+            :25
+        ]  # return max 25 completions (discord limit)
+    ]
+
+
+@lvlup.autocomplete("tier_name")
+async def lvlup_tier_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+
+    filtered_card_names = [
+        tier for tier in list(tiers.keys()) if current.lower() in tier.lower()
+    ]
+    return [
+        app_commands.Choice(name=card_name, value=card_name)
+        for card_name in filtered_card_names[
+            :25
+        ]  # return max 25 completions (discord limit)
+    ]
+
+
 @bot.command()
 async def battle(ctx, member: discord.Member):
     if member == ctx.author:
@@ -649,6 +651,7 @@ async def draw(ctx):
     embed = view.get_page_embed()
     embed = view.get_page_embed()
     await ctx.send(embed=embed, view=view)
-    
+
+
 if __name__ == "__main__":
     bot.run(token)  # pyright: ignore
