@@ -1,20 +1,16 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from typing import List
 import re
 import json
 import os
 import random
-<<<<<<< HEAD
 from sympy import sympify
-=======
-from discord.ext import commands
-from sympy import sympify  
->>>>>>> jingshi_branch
 from datetime import datetime, timedelta
 from util import *
-from battle import BattleConfirmation, BattleView, create_battle_image
+from battle import BattleConfirmation, BattleView
+from image_util import *
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -24,6 +20,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 ROLL_RESET_HOURS = 2
 MAX_ROLLS = 10
+vc_client = None
+vc_channel = None
 
 users = {}
 current_count = 0
@@ -48,8 +46,10 @@ with open("users.json", "r") as f:
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 bot_channelId = 1341007196917469275
 roll_channelId = 1388890411443028118
+test_channelId = 1389936899917090877
 aquatic_id = 274463901037494274
 guild_id = 1043107075150065694
+vcChannel_id = 1390329071442985110
 
 tokugawa_map = {
     "<:tokugawa:1228747556306161774>": "1",
@@ -157,7 +157,12 @@ async def handle_roll(ctx):
 
 @bot.event
 async def on_ready():
-    synced = await bot.tree.sync(guild=discord.Object(id=guild_id))
+    global vc_channel
+    synced = await bot.tree.sync(
+        guild=discord.Object(id=guild_id)
+    )  # sync slash commands
+    vc_channel = bot.get_channel(vcChannel_id)  # initilize vc_channel
+    play_audio_loop.start()
     print(f"Synced {len(synced)} commands.")
     print(f"{bot.user} has connected")
 
@@ -178,7 +183,7 @@ async def yjsnpi(ctx):
 
 @bot.command(aliases=["hm"])
 async def homo(ctx):
-    if ctx.channel.id != roll_channelId:
+    if ctx.channel.id != roll_channelId and ctx.channel.id != test_channelId:
         embed = discord.Embed(
             title="請在``#惡臭抽卡``抽",
             description="請勿隨地脫雪，謝謝 ",
@@ -204,29 +209,6 @@ async def inv(ctx):
         await ctx.send(embed=embed, view=view, file=view.img_file)
     else:
         await ctx.send(embed=embed, view=view)
-
-
-@bot.command(aliases=["sc"])
-async def showcase(ctx, name: str, tier_name: str):
-    user_id = ctx.author.id
-    if user_id not in users:
-        await ctx.reply(f"你他媽沒有牌")
-        return
-
-    inventory = users[user_id].get("inventory", [])
-
-    # Find the character in the user's inventory
-    showcase_char = next(
-        (item for item in inventory if item[1] == name and item[5] == tiers[tier_name]),
-        None,
-    )
-
-    if showcase_char:
-        corp, _, desc, img, movies, tier, count = showcase_char
-        embed, img_file = char_embed(name, desc, img, corp, movies, tier)
-        await ctx.send(embed=embed, file=img_file)
-    else:
-        await ctx.reply(f"找不到卡片 {name} ({tier_name})", ephemral=True)
 
 
 @bot.command(aliases=["ct"])
@@ -323,6 +305,58 @@ async def tier_name_autocomplete(
     ]
 
 
+@bot.hybrid_command(
+    name="search",
+    with_app_command=True,
+    description="查詢卡片",
+    aliases=["s"],
+)
+@app_commands.guilds(discord.Object(id=guild_id))
+async def search(ctx: commands.Context, input_name: str, tier_name: str):
+    await ctx.defer()
+    corp, name, desc, img, movies = get_card_by_name(input_name)
+    if movies == 0:
+        await ctx.reply(f"找不到卡片 {input_name} ({tier_name})")
+        return
+    embed, img_file = char_embed(name, desc, img, corp, movies, tiers[tier_name])
+    await ctx.reply(embed=embed, file=img_file)
+
+
+@search.autocomplete("input_name")
+async def search_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+
+    card_names = [row[3] for row in rows]
+    filtered_card_names = [
+        card_name for card_name in card_names if current.lower() in card_name.lower()
+    ]
+    return [
+        app_commands.Choice(name=card_name, value=card_name)
+        for card_name in filtered_card_names[
+            :25
+        ]  # return max 25 completions (discord limit)
+    ]
+
+
+@search.autocomplete("tier_name")
+async def search_tier_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+
+    filtered_card_names = [
+        tier for tier in list(tiers.keys()) if current.lower() in tier.lower()
+    ]
+    return [
+        app_commands.Choice(name=card_name, value=card_name)
+        for card_name in filtered_card_names[
+            :25
+        ]  # return max 25 completions (discord limit)
+    ]
+
+
 @bot.command()
 async def highscore(ctx):
     await ctx.send(
@@ -337,15 +371,6 @@ async def purge(ctx):
     if ctx.author.id == aquatic_id:
         await ctx.channel.purge(limit=10)
         await ctx.send("deleted", delete_after=5)
-
-
-@bot.command()
-async def test_rainbow_card(ctx):
-    character = get_random_char()
-    corp, name, desc, img, movies, _ = character
-    rainbow_tier = tiers["Rainbow"]
-    embed, img_file = char_embed(name, desc, img, corp, movies, rainbow_tier)
-    await ctx.send(embed=embed, file=img_file)
 
 
 @bot.command()
@@ -366,7 +391,7 @@ async def help(ctx):
     )
     embed.add_field(
         name="破真角色抽卡",
-        value="🔴 僅限 ``#惡臭抽卡``\n``!homo/hm``: 抽取破真角色 \n``!myhomo/mh/inv``: 查看同性戀戰隊\n``!showcase/sc [角色名稱] [等級代號]``: 展示卡牌\n``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n\n> 每兩小時十抽，從重置後第一抽開始倒數\n\n* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%",
+        value="🔴 僅限 ``#惡臭抽卡``\n``!homo/hm``: 抽取破真角色 \n``!myhomo/mh/inv``: 查看同性戀戰隊\n``!search [角色名稱] [等級代號]``: 查詢卡牌\n``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n\n> 每兩小時十抽，從重置後第一抽開始倒數\n\n* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%",
         inline=False,
     )
 
@@ -444,6 +469,20 @@ async def on_message(message):
     await bot.process_commands(message)  # also process the message as commands
 
 
+@tasks.loop(minutes=3.0)
+async def play_audio_loop():
+    global vc_client
+    try:
+        if vc_client is None or not vc_client.is_connected():
+            vc_client = await vc_channel.connect(reconnect=True)  # type: ignore
+
+        if vc_client is not None and not vc_client.is_playing():
+            vc_client.play(discord.FFmpegPCMAudio("./media/restaurant.mp3"))
+
+    except Exception as e:
+        print(f"[Audio Error] {e}")
+
+
 @bot.command()
 async def battle(ctx, member: discord.Member):
     if member == ctx.author:
@@ -475,21 +514,22 @@ async def battle(ctx, member: discord.Member):
         p1_inventory = users[p1_id]["inventory"]
         p2_inventory = users[p2_id]["inventory"]
         battle_view = BattleView(ctx.author, member, p1_inventory, p2_inventory)
-        battle_image = create_battle_image(battle_view.p1_cards, battle_view.p2_cards)
+        battle_image = create_table_image(
+            battle_view.p1_cards,
+            battle_view.p2_cards,
+            ctx.author.display_name,
+            member.display_name,
+        )
         embed = battle_view.create_embed()
-        await ctx.send(embed=embed, view=battle_view)
-<<<<<<< HEAD
-        await ctx.send(file=battle_image)
+        message = await ctx.send(embed=embed, view=battle_view, file=battle_image)
 
 
-=======
->>>>>>> jingshi_branch
 @bot.command()
 async def draw(ctx):
     user_id = ctx.author.id
     inventory = users[user_id].get("inventory", [])
-<<<<<<< HEAD
-    users[user_id]["deck"] = []
+    user_deck = {"deck": []}
+    users[user_id].append(user_deck)
     index = random.randrange(0, len(inventory) - 1)
     users[user_id]["deck"].append(inventory[index])
     deck = users.get("deck", [])
@@ -503,19 +543,5 @@ async def mydeck(ctx, member=discord.Member):
     user_id = ctx.author.id
 
 
-=======
-    user_deck = {'deck': []}
-    users[user_id].append(user_deck)
-    index = random().randrange(0, len(inventory) - 1)
-    users[user_id]['deck'].append(inventory[index])
-    deck = users.get("deck", [])
-    view = InventoryView(ctx, deck)
-    embed  = view.get_page_embed()
-    await ctx.send(embed=embed, view=view)
-@bot.command(aliases = ["md"])
-async def mydeck(ctx, member = discord.Member):
-    user_id = ctx.author.id
-    
->>>>>>> jingshi_branch
 if __name__ == "__main__":
     bot.run(token)  # pyright: ignore

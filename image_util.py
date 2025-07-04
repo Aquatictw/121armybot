@@ -1,4 +1,4 @@
-from PIL import Image, ImageDraw, ImageSequence
+from PIL import Image, ImageDraw, ImageSequence, ImageFont
 from io import BytesIO
 import discord
 import requests
@@ -147,3 +147,162 @@ def gradient(img, start, end):
     # Blend it over the base image
     result = Image.alpha_composite(img, gradient)
     return result
+
+
+font = ImageFont.truetype("./media/GenWanMin2-M.ttc", 40)
+small_font = ImageFont.truetype("./media/GenWanMin2-M.ttc", 28)
+
+
+def _process_cards(cards):
+    processed_cards = []
+    total_height = 0
+    for card in cards:
+        _, name, _, img_url, _, tier = card[:6]
+        try:
+            discord_file = char_img(img_url, tier)
+            card_img = Image.open(discord_file.fp).convert("RGBA")
+            card_img.thumbnail((200, 200))
+            processed_cards.append((card_img, name))
+            total_height += card_img.height
+        except Exception as e:
+            print(f"Error processing image for card: {name} - {e}")
+    return processed_cards, total_height
+
+
+def create_table_image(p1_cards, p2_cards, player1_name, player2_name):
+
+    PADDING = 20
+
+    p1_processed, p1_card_content_height = _process_cards(p1_cards)
+    p2_processed, p2_card_content_height = _process_cards(p2_cards)
+    player_name_font = ImageFont.truetype("./media/GenWanMin2-M.ttc", 30)  # player name
+    player_name_height = player_name_font.getbbox("測試")[
+        3
+    ]  # Get height of a sample text
+
+    # Determine the font for "空" and its height
+    empty_font = ImageFont.truetype("./media/GenWanMin2-M.ttc", 80)
+    empty_text = "空"
+    _, empty_text_height = empty_font.getbbox(empty_text)[2:]
+    min_height_for_empty_text = (
+        empty_text_height + 2 * PADDING
+    )  # Add some padding around "空"
+
+    # Calculate heights for each side, considering player name and empty state
+    p1_display_height = 0
+    if p1_processed:  # if there are cards
+        p1_display_height = (
+            p1_card_content_height
+            + PADDING * (len(p1_processed) + 1)
+            + player_name_height
+            + PADDING
+        )
+    else:
+        p1_display_height = min_height_for_empty_text + player_name_height + PADDING
+
+    p2_display_height = 0
+    if p2_processed:
+        p2_display_height = (
+            p2_card_content_height
+            + PADDING * (len(p2_processed) + 1)
+            + player_name_height
+            + PADDING
+        )
+    else:
+        p2_display_height = min_height_for_empty_text + player_name_height + PADDING
+
+    image_height = max(
+        p1_display_height, p2_display_height
+    )  # calculate the max height of the whole image
+
+    background = Image.new("RGBA", (1200, image_height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(background)
+
+    # Draw Player 1 name
+    p1_name_x = 20
+    p1_name_y = PADDING
+    draw.text(
+        (p1_name_x, p1_name_y),
+        player1_name,
+        font=player_name_font,
+        fill=(255, 215, 0, 255),
+    )  # Gold color
+
+    # Player 1 cards and names
+    if p1_processed:
+        y_offset = PADDING + player_name_height + PADDING  # Start below player name
+        for card_img, name in p1_processed:
+            img_x = 20
+            img_y = y_offset
+            current_font = (
+                small_font if len(name) > 7 else font
+            )  # font size dependent on name length
+            text_x = img_x + card_img.width + 10
+            text_y = img_y + (card_img.height - current_font.getbbox(name)[3]) // 2
+            background.paste(card_img, (img_x, img_y), card_img)
+            draw.text(
+                (text_x, text_y), name, font=current_font, fill=(255, 255, 255, 255)
+            )
+            y_offset += card_img.height + PADDING
+    else:
+        # Draw "空" for Player 1
+        text_width, text_height = empty_font.getbbox(empty_text)[2:]
+        text_x = (600 - text_width) // 2  # Center in the left half (width 600)
+        text_y = (image_height - text_height) // 2
+        draw.text(
+            (text_x, text_y), empty_text, font=empty_font, fill=(255, 255, 255, 255)
+        )
+
+    # Draw Player 2 name
+    p2_name_text_width = player_name_font.getbbox(player2_name)[2]
+    p2_name_x = 1200 - p2_name_text_width - 20
+    p2_name_y = PADDING
+    draw.text(
+        (p2_name_x, p2_name_y),
+        player2_name,
+        font=player_name_font,
+        fill=(255, 215, 0, 255),
+    )  # Gold color
+
+    # Draw Player 2 cards and Names
+    if p2_processed:
+        y_offset = PADDING + player_name_height + PADDING  # Start below player name
+        for card_img, name in p2_processed:
+            img_x = 1200 - card_img.width - 20
+            img_y = y_offset
+            current_font = small_font if len(name) > 7 else font
+            text_x = img_x - 10 - current_font.getbbox(name)[2]
+            text_y = img_y + (card_img.height - current_font.getbbox(name)[3]) // 2
+            background.paste(card_img, (img_x, img_y), card_img)
+            draw.text(
+                (text_x, text_y), name, font=current_font, fill=(255, 255, 255, 255)
+            )
+            y_offset += card_img.height + PADDING
+    else:
+        # Draw "空" for Player 2
+        text_width, text_height = empty_font.getbbox(empty_text)[2:]
+        text_x = 600 + (600 - text_width) // 2  # Center in the right half (width 600)
+        text_y = (image_height - text_height) // 2
+        draw.text(
+            (text_x, text_y), empty_text, font=empty_font, fill=(255, 255, 255, 255)
+        )
+
+    # Draw the dividing line
+    line_x = 600
+    for y in range(0, image_height, 20):
+        draw.line([(line_x, y), (line_x, y + 10)], fill="white", width=2)
+
+    # Add vertical text 對決
+    vs_font = ImageFont.truetype("./media/GenWanMin2-M.ttc", 80)
+    vs_text = "對決"
+    text_width, text_height = vs_font.getbbox(vs_text)[2:]
+    text_x = line_x - text_width // 4
+    text_y = (image_height - (text_height * len(vs_text))) // 2
+
+    for i, char in enumerate(vs_text):
+        draw.text((text_x, text_y + i * text_height), char, font=vs_font, fill="red")
+
+    buffer = BytesIO()
+    background.save(buffer, format="PNG")
+    buffer.seek(0)
+    return discord.File(fp=buffer, filename="battle.png")
