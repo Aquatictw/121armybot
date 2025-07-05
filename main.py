@@ -23,12 +23,13 @@ ROLL_RESET_HOURS = 2
 MAX_ROLLS = 10
 vc_client = None
 vc_channel = None
-
+roll_channel = None  # checktime channel
 users = {}
 current_count = 0
 last_user_id = 0
 high_score = 0
 high_score_time = ""
+mentioned_users = []
 
 with open("count.txt", "r") as f:
     p1, p2, p3, high_score_time = f.read().strip().split(",")
@@ -118,6 +119,8 @@ def can_roll(user_id):
 
 async def handle_roll(ctx):
     user_id = ctx.author.id
+    if user_id in mentioned_users:
+        mentioned_users.remove(user_id)
 
     if can_roll(user_id):
         users[user_id]["rolls"] -= 1
@@ -160,12 +163,14 @@ async def handle_roll(ctx):
 
 @bot.event
 async def on_ready():
-    global vc_channel
+    global vc_channel, roll_channel
     synced = await bot.tree.sync(
         guild=discord.Object(id=guild_id)
     )  # sync slash commands
     vc_channel = bot.get_channel(vcChannel_id)  # initilize vc_channel
+    roll_channel = bot.get_channel(roll_channelId)
     play_audio_loop.start()
+    checktime_loop.start()
     print(f"Synced {len(synced)} commands.")
     print(f"{bot.user} has connected")
 
@@ -212,6 +217,17 @@ async def inv(ctx):
         await ctx.send(embed=embed, view=view, file=view.img_file)
     else:
         await ctx.send(embed=embed, view=view)
+
+
+@tasks.loop(seconds=30.0)
+async def checktime_loop():
+    global mentioned_users
+    for id, data in users.items():
+        _, flag, _ = have_time_passed(data["last_reset"], 2)
+        if flag and id not in mentioned_users:
+            target_user = await bot.fetch_user(int(id))
+            await roll_channel.send(f"{target_user.mention} 你可以Roll了!")
+            mentioned_users.append(id)
 
 
 @bot.command(aliases=["ct"])
@@ -690,19 +706,16 @@ async def leaderboard(ctx):
             elif "白金" in tier_text:
                 whitegold_count += card_count
 
-        if rainbow_count > 0 or blackgold_count > 0 or whitegold_count > 0:
-            total_score = (
-                rainbow_count * 90 + blackgold_count * 10 + whitegold_count * 3
-            )
-            leaderboard_data.append(
-                {
-                    "user_id": user_id,
-                    "rainbow": rainbow_count,
-                    "blackgold": blackgold_count,
-                    "whitegold": whitegold_count,
-                    "score": total_score,
-                }
-            )
+        total_score = rainbow_count * 90 + blackgold_count * 10 + whitegold_count * 3
+        leaderboard_data.append(
+            {
+                "user_id": user_id,
+                "rainbow": rainbow_count,
+                "blackgold": blackgold_count,
+                "whitegold": whitegold_count,
+                "score": total_score,
+            }
+        )
 
     leaderboard_data.sort(key=lambda x: x["score"], reverse=True)
 
