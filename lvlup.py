@@ -37,9 +37,7 @@ class LvlupView(discord.ui.View):
         options = []
         if not self.eligible_cards:
             return discord.ui.Select(
-                placeholder="沒有可以升級的卡片。",
-                options=[discord.SelectOption(label="No eligible cards", value="none")],
-                disabled=True,
+                placeholder="選擇要升級的卡片...",
             )
 
         for card in self.eligible_cards:
@@ -52,12 +50,17 @@ class LvlupView(discord.ui.View):
                     value=f"{card_name}|{tier_name}",
                 )
             )
-        return discord.ui.Select(
+        select = discord.ui.Select(
             placeholder="選擇要升級的卡片...",
             min_values=1,
             max_values=len(options),
             options=options,
         )
+        select.callback = self.select_callback
+        return select
+
+    async def select_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
 
     def create_lvlup_button(self):
         button = discord.ui.Button(label="升級", style=discord.ButtonStyle.success)
@@ -66,7 +69,7 @@ class LvlupView(discord.ui.View):
 
     async def lvlup_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        selected_options = self.children[0].values
+        selected_options = self.children[0].values  # pyright: ignore
         if not selected_options or selected_options[0] == "none":
             await interaction.followup.send("請選擇要升級的卡片。")
             return
@@ -150,7 +153,8 @@ class LvlupView(discord.ui.View):
         else:
             self.save_callback()
             summary_lines = [
-                f"將 {tiers[old_tier]["lvlup_req"] * new_cards} 張 **{name} ({old_tier})** 合成為 {new_cards} 張 **{name} ({new_tier})**"
+                f"將 {tiers[old_tier]["lvlup_req"] * new_cards} 張 **{name} ({tiers[old_tier]["text"]}{tiers[old_tier]["emoji"]})** "
+                + f"合成為 {new_cards} 張 **{name} ({tiers[new_tier]["text"]}{tiers[new_tier]["emoji"]})**"
                 for (name, old_tier, new_tier), new_cards in upgraded_summary.items()
             ]
             await interaction.followup.send(

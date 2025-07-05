@@ -222,11 +222,6 @@ async def checktime(ctx):
         await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
     else:
         await ctx.send(f"{ctx.author.mention} 你可以Roll了!")
-    _, flag, delta = have_time_passed(users[user_id]["last_reset"], 2)
-    if not flag:
-        await ctx.send(f"{ctx.author.mention} 你的Roll將在 **{delta}** 後重置")
-    else:
-        await ctx.send(f"{ctx.author.mention} 你可以Roll了!")
 
 
 @bot.hybrid_command(
@@ -612,10 +607,11 @@ async def lvlupall(ctx):
     else:
         save_count()
         summary_lines = [
-            f"將 {tiers[old_tier]["lvlup_req"] * new_cards} 張 **{name} ({old_tier})** 合成為 {new_cards} 張 **{name} ({new_tier})**"
+            f"將 {tiers[old_tier]["lvlup_req"] * new_cards} 張 **{name} ({tiers[old_tier]["text"]}{tiers[old_tier]["emoji"]})** "
+            + f"合成為 {new_cards} 張 **{name} ({tiers[new_tier]["text"]}{tiers[new_tier]["emoji"]})**"
             for (name, old_tier, new_tier), new_cards in upgraded_summary.items()
         ]
-        await ctx.send("✨ 升級完畢！" + "".join(summary_lines))
+        await ctx.send("✨ 升級完畢！\n" + "\n".join(summary_lines))
 
 
 @bot.command()
