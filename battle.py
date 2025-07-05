@@ -1,10 +1,133 @@
 import discord
-from random import uniform, sample
+from random import sample, choice
 from discord.ui import View, Button
 from image_util import create_table_image, create_hand_image
 
 
+class AttackView(View):
+    def __init__(self, battle_view, first_attacker):
+        super().__init__()
+        self.battle_view = battle_view
+        self.first_attacker = first_attacker
+        self.second_attacker = (
+            self.battle_view.player2
+            if self.first_attacker == self.battle_view.player1
+            else self.battle_view.player1
+        )
+        self.current_attacker = self.first_attacker
+        self.attack_pairs = {self.first_attacker.id: [], self.second_attacker.id: []}
+        self.used_attackers = {self.first_attacker.id: [], self.second_attacker.id: []}
+        self.show_attacker_selection()
+
+    def get_attacking_cards(self):
+        return (
+            self.battle_view.p1_table
+            if self.current_attacker == self.battle_view.player1
+            else self.battle_view.p2_table
+        )
+
+    def get_defending_cards(self):
+        return (
+            self.battle_view.p2_table
+            if self.current_attacker == self.battle_view.player1
+            else self.battle_view.p1_table
+        )
+
+    def show_attacker_selection(self):
+        self.clear_items()
+        attacking_cards = self.get_attacking_cards()
+        for i, card in enumerate(attacking_cards):
+            if i not in self.used_attackers[self.current_attacker.id]:
+                _, card_name, _, _, _, _, _ = card
+                button = Button(
+                    label=f"選擇 {card_name[:10]}",
+                    style=discord.ButtonStyle.secondary,
+                    custom_id=f"attacker_{i}",
+                    row=i // 5,
+                )
+                button.callback = self.select_attacker
+                self.add_item(button)
+
+        finish_button = Button(
+            label="結束攻擊",
+            style=discord.ButtonStyle.danger,
+            custom_id="finish_attacking",
+            row=4,
+        )
+        finish_button.callback = self.finish_attacking
+        self.add_item(finish_button)
+
+    def show_target_selection(self):
+        self.clear_items()
+        defending_cards = self.get_defending_cards()
+        if not defending_cards:
+            opponent = (
+                self.battle_view.player2
+                if self.current_attacker == self.battle_view.player1
+                else self.battle_view.player1
+            )
+            button = Button(
+                label=f"攻擊 {opponent.display_name}",
+                style=discord.ButtonStyle.danger,
+                custom_id=f"target_{opponent.display_name}",
+            )
+            button.callback = self.select_target
+            self.add_item(button)
+        else:
+            for i, card in enumerate(defending_cards):
+                _, card_name, _, _, _, _, _ = card
+                button = Button(
+                    label=f"攻擊 {card_name[:10]}",
+                    style=discord.ButtonStyle.danger,
+                    custom_id=f"target_{i}",
+                    row=i // 5,
+                )
+                button.callback = self.select_target
+                self.add_item(button)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user != self.current_attacker:
+            await interaction.response.send_message(
+                "現在不是你的回合。", ephemeral=True
+            )
+            return False
+        return True
+
+    async def select_attacker(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        self.attacking_card_index = int(interaction.data["custom_id"].split("_")[1])
+        self.show_target_selection()
+        await interaction.edit_original_response(view=self)
+
+    async def select_target(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        target_card_index = int(interaction.data["custom_id"].split("_")[1])
+        self.attack_pairs[self.current_attacker.id].append(
+            (self.attacking_card_index, target_card_index)
+        )
+        self.used_attackers[self.current_attacker.id].append(self.attacking_card_index)
+        self.show_attacker_selection()
+        await interaction.edit_original_response(view=self)
+
+    async def finish_attacking(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        if self.current_attacker == self.first_attacker:
+            self.current_attacker = self.second_attacker
+            self.show_attacker_selection()
+            embed = interaction.message.embeds[0]
+            embed.title = f"⚔️ 回合 {self.battle_view.round} 戰鬥階段 - {self.current_attacker.display_name} 攻擊！"
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            self.battle_view.attack_pairs = self.attack_pairs
+            self.battle_view.round += 1
+            self.battle_view.turn = self.battle_view.player1
+            await self.battle_view.original_interaction.edit_original_response(
+                embed=self.battle_view.create_embed(), view=self.battle_view
+            )
+
+
 class HandView(View):
+    # Processing information regard the private hand views
     def __init__(self, hand, battle_view, original_interaction):
         super().__init__()
         self.hand = hand
@@ -40,7 +163,7 @@ class HandView(View):
             button = Button(
                 label=f"部屬 {card_name[:10]}",
                 style=discord.ButtonStyle.secondary,
-                custom_id=f"{card_name}_{tier["text"]}",
+                custom_id=f"{card_name}_{tier['text']}",
                 row=i // 5,
             )
             button.callback = self.deploy_card
@@ -140,14 +263,15 @@ class HandView(View):
                 item.disabled = True
 
         await interaction.response.edit_message(
-            content=f"你已完成部屬。", view=self, attachments=[]
+            content="你已完成部屬。", view=self, attachments=[]
         )
 
-        if self.battle_view.turn == self.battle_view.player1:
+        is_p1_turn = self.battle_view.turn == self.battle_view.player1
+
+        if is_p1_turn:
             self.battle_view.turn = self.battle_view.player2
         else:
             self.battle_view.turn = self.battle_view.player1
-            self.battle_view.round += 1
 
         battle_image = create_table_image(
             self.battle_view.p1_table,
@@ -155,10 +279,43 @@ class HandView(View):
             self.battle_view.player1.display_name,
             self.battle_view.player2.display_name,
         )
+
+        if not is_p1_turn and self.battle_view.round >= 2:
+            # Battle phase starts after P2 finishes deployment and round is 1 or more
+            attacker = choice([self.battle_view.player1, self.battle_view.player2])
+            embed = discord.Embed(
+                title=f"⚔️ 回合 {self.battle_view.round} 戰鬥階段 - 由 {attacker.display_name} 先攻！",
+                description=f"",
+                colour=0xFF0000,
+            )
+            original_embed = self.battle_view.create_embed()
+            embed.set_author(name=original_embed.author.name)
+            embed.add_field(
+                name=f"{self.battle_view.player1.display_name}",
+                value=original_embed.fields[0].value,
+                inline=True,
+            )
+            embed.add_field(
+                name=f"{self.battle_view.player2.display_name}",
+                value=original_embed.fields[1].value,
+                inline=True,
+            )
+            embed.add_field(
+                name="📊 狀態", value=original_embed.fields[2].value, inline=False
+            )
+            embed.set_footer(
+                text=original_embed.footer.text, icon_url=original_embed.footer.icon_url
+            )
+            view = AttackView(self.battle_view, attacker)
+        else:  # if still in round 1
+            embed = self.battle_view.create_embed()
+            view = self.battle_view
+            self.battle_view.round += 1
+
         await self.original_interaction.edit_original_response(
-            embed=self.battle_view.create_embed(),
+            embed=embed,
             attachments=[battle_image],
-            view=self.battle_view,
+            view=view,
         )
 
 
@@ -196,12 +353,14 @@ class BattleConfirmation(View):
 
 
 class BattleView(View):
+    # For proccessing information of the table
     def __init__(self, player1, player2, p1_inventory, p2_inventory):
         super().__init__()
         self.player1 = player1
         self.player2 = player2
         self.p1_table = []
         self.p2_table = []
+        self.attack_pairs = {}
 
         # Store inventories
         self.p1_inventory = p1_inventory
@@ -237,7 +396,7 @@ class BattleView(View):
         embed = discord.Embed(
             title=f"🛡️ 回合 {self.round} - 請{self.turn.display_name}部屬",
             url="https://laxd.com",
-            colour=0x000000,
+            colour=0x00C7FF,
         )
         embed.set_author(
             name=f"Homo戰鬥開始🗡️ {self.player1.display_name} v.s. {self.player2.display_name}"
