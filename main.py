@@ -549,10 +549,11 @@ class LvlupView(discord.ui.View):
             options=options,
         )
 
-    """def create_lvlup_button(self):
+    def create_lvlup_button(self):
         button = discord.ui.Button(label="升級", style=discord.ButtonStyle.success)
         button.callback = self.lvlup_callback
-        return button"""
+        return button
+    
     @discord.ui.button(label=" 升級", style=discord.ButtonStyle.primary)
     async def lvlup_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
