@@ -496,109 +496,115 @@ async def play_audio_loop():
 @bot.hybrid_command(
     name="lvlup",
     with_app_command=True,
-    description="升級卡片",
+    description="升級卡片 (可一次升級多張: 卡片1 等級1, 卡片2 等級2, ...)",
     aliases=["merge"],
 )
 @app_commands.guilds(discord.Object(id=guild_id))
-async def lvlup(ctx, card_name: str, tier_name: str):
+@app_commands.describe(cards_to_upgrade="要升級的卡片列表，格式: 卡片1 等級1, 卡片2 等級2, ...")
+async def lvlup(ctx, *, cards_to_upgrade: str):
     user_id = ctx.author.id
     if user_id not in users:
         await ctx.send("你沒有任何卡片。")
         return
 
+    card_list = [s.strip() for s in cards_to_upgrade.split(',')]
+
+    if not card_list or not cards_to_upgrade.strip():
+        await ctx.send("請提供要升級的卡片。格式: `卡片名稱 等級, ...`")
+        return
+
     inventory = users[user_id].get("inventory", [])
     promotion_order = list(tiers.keys())
+    
+    messages = []
+    success_count = 0
 
-    if tier_name not in promotion_order:
-        await ctx.send(f"未知的等級: {tier_name}")
-        return
+    for card_info in card_list:
+        parts = card_info.strip().split()
+        if len(parts) < 2:
+            messages.append(f"格式錯誤: `{card_info}`. 請使用 `卡片名稱 等級`.")
+            continue
 
-    actual_tier_name = tiers[tier_name]["text"]
+        tier_name = parts[-1]
+        card_name = " ".join(parts[:-1]).strip()
+        
+        if not card_name:
+            messages.append(f"格式錯誤: `{card_info}`. 卡片名稱不能為空.")
+            continue
 
-    # Find the card to level up
-    card_to_lvlup = None
-    for card in inventory:
-        if card[1] == card_name and card[5]["text"] == actual_tier_name:
-            card_to_lvlup = card
-            break
+        if card_name.startswith('"') and card_name.endswith('"'):
+            card_name = card_name[1:-1]
+        if card_name.startswith("'") and card_name.endswith("'"):
+            card_name = card_name[1:-1]
 
-    if card_to_lvlup is None:
-        await ctx.reply(f"你沒有 **{card_name} ({tier_name})**，你又在唬幹洨")
-        return
+        if tier_name not in promotion_order:
+            messages.append(f"未知的等級: `{tier_name}` (來自 `{card_info}`).")
+            continue
+        
+        actual_tier_name = tiers[tier_name]["text"]
 
-    current_tier_index = promotion_order.index(tier_name)
+        card_to_lvlup = None
+        for card in inventory:
+            if card[1] == card_name and card[5]["text"] == actual_tier_name:
+                card_to_lvlup = card
+                break
 
-    if current_tier_index == len(promotion_order) - 1:
-        await ctx.send("你他媽彩虹卡是要升個屌")
-        return
+        if card_to_lvlup is None:
+            messages.append(f"你沒有 **{card_name} ({tier_name})**，你又在唬幹洨")
+            continue
 
-    next_tier_index = promotion_order[current_tier_index + 1]
-    next_tier_info = tiers[next_tier_index]
+        current_tier_index = promotion_order.index(tier_name)
 
-    if card_to_lvlup[6] < tiers[tier_name]["lvlup_req"]:
-        await ctx.send(
-            f"你需要 {tiers[tier_name]['lvlup_req']} 張 **{card_name} ({tier_name})** 才能合成為 1 張 **{card_name} ({next_tier_index})**！"
+        if current_tier_index == len(promotion_order) - 1:
+            messages.append(f"你他媽{card_name}是彩虹卡是要升個屌")
+            continue
+
+        next_tier_name = promotion_order[current_tier_index + 1]
+        next_tier_info = tiers[next_tier_name]
+
+        lvlup_req = tiers[tier_name]["lvlup_req"]
+        if card_to_lvlup[6] < lvlup_req:
+            messages.append(
+                f"你需要 {lvlup_req} 張 **{card_name} ({tier_name})** 才能合成為 1 張 **{card_name} ({next_tier_name})**！"
+            )
+            continue
+
+        card_to_lvlup[6] -= lvlup_req
+        if card_to_lvlup[6] == 0:
+            inventory.remove(card_to_lvlup)
+
+        higher_tier_card = None
+        for card in inventory:
+            if card[1] == card_name and card[5]["text"] == next_tier_info["text"]:
+                higher_tier_card = card
+                break
+
+        if higher_tier_card:
+            higher_tier_card[6] += 1
+        else:
+            corp, _, desc, img, movies = get_card_by_name(card_name)
+            if corp is None:
+                messages.append(f"卡片資料庫中找不到卡片 {card_name}，無法建立新卡。")
+                # Revert card count subtraction
+                card_to_lvlup[6] += lvlup_req
+                if card_to_lvlup[6] == lvlup_req and card_to_lvlup not in inventory:
+                    inventory.append(card_to_lvlup)
+                continue
+            new_card = [corp, card_name, desc, img, movies, next_tier_info, 1]
+            inventory.append(new_card)
+        
+        success_count += 1
+        messages.append(
+            f"成功將 {lvlup_req} 張 **{card_name} ({tier_name})** 合成為 1 張 **{card_name} ({next_tier_name})**！"
         )
-        return
 
-    card_to_lvlup[6] -= tiers[tier_name]["lvlup_req"]  # Subtract cards
-    if card_to_lvlup[6] == 0:  # Remove
-        inventory.remove(card_to_lvlup)
-
-    # Check if user already has the higher tier card
-    higher_tier_card = None
-    for card in inventory:
-        if card[1] == card_name and card[5]["text"] == next_tier_info["text"]:
-            higher_tier_card = card
-            break
-
-    if higher_tier_card:
-        higher_tier_card[6] += 1
+    if success_count > 0:
+        save_count()
+        
+    if messages:
+        await ctx.send("\n".join(messages))
     else:
-        # Create new card for the higher tier
-        corp, _, desc, img, movies = get_card_by_name(card_name)
-        new_card = [corp, card_name, desc, img, movies, next_tier_info, 1]
-        inventory.append(new_card)
-
-    save_count()
-    await ctx.send(
-        f"成功將 {tiers[tier_name]['lvlup_req']} 張 **{card_name} ({tier_name})** 合成為 1 張 **{card_name} ({next_tier_index})**！"
-    )
-
-
-@lvlup.autocomplete("card_name")
-async def lvlup_name_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> List[app_commands.Choice[str]]:
-
-    card_names = [row[3] for row in rows]
-    filtered_card_names = [
-        card_name for card_name in card_names if current.lower() in card_name.lower()
-    ]
-    return [
-        app_commands.Choice(name=card_name, value=card_name)
-        for card_name in filtered_card_names[
-            :25
-        ]  # return max 25 completions (discord limit)
-    ]
-
-
-@lvlup.autocomplete("tier_name")
-async def lvlup_tier_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> List[app_commands.Choice[str]]:
-
-    filtered_card_names = [
-        tier for tier in list(tiers.keys()) if current.lower() in tier.lower()
-    ]
-    return [
-        app_commands.Choice(name=card_name, value=card_name)
-        for card_name in filtered_card_names[
-            :25
-        ]  # return max 25 completions (discord limit)
-    ]
+        await ctx.send("沒有處理任何卡片。請檢查你的輸入。")
 
 
 @bot.command()
