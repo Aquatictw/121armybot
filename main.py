@@ -401,7 +401,7 @@ async def help(ctx):
     )
     embed.add_field(
         name="破真角色抽卡",
-        value="🔴 僅限 ``#惡臭抽卡``\n``!homo/hm``: 抽取破真角色 \n``!myhomo/mh/inv``: 查看同性戀戰隊\n``!search [角色名稱] [等級代號]``: 查詢卡牌\n``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n\n> 每兩小時十抽，從重置後第一抽開始倒數\n\n* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%",
+        value="🔴 僅限 ``#惡臭抽卡``\n``!homo/hm``: 抽取破真角色 \n``!myhomo/mh/inv``: 查看同性戀戰隊\n``!leaderboard/lb``: 查看同性戀排行榜\n``!search [角色名稱] [等級代號]``: 查詢卡牌\n``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n\n> 每兩小時十抽，從重置後第一抽開始倒數\n\n* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%",
         inline=False,
     )
 
@@ -656,6 +656,68 @@ async def draw(ctx):
     embed = view.get_page_embed()
     embed = view.get_page_embed()
     await ctx.send(embed=embed, view=view)
+
+
+@bot.command(aliases=["lb"])
+async def leaderboard(ctx):
+    leaderboard_data = []
+    for user_id, data in users.items():
+        inventory = data.get("inventory", [])
+        rainbow_count = 0
+        blackgold_count = 0
+        whitegold_count = 0
+
+        for card in inventory:
+            tier_text = card[5]["text"]
+            card_count = card[6]
+            if "彩虹" in tier_text:
+                rainbow_count += card_count
+            elif "黑金" in tier_text:
+                blackgold_count += card_count
+            elif "白金" in tier_text:
+                whitegold_count += card_count
+
+        if rainbow_count > 0 or blackgold_count > 0 or whitegold_count > 0:
+            total_score = (
+                rainbow_count * 90 + blackgold_count * 10 + whitegold_count * 3
+            )
+            leaderboard_data.append(
+                {
+                    "user_id": user_id,
+                    "rainbow": rainbow_count,
+                    "blackgold": blackgold_count,
+                    "whitegold": whitegold_count,
+                    "score": total_score,
+                }
+            )
+
+    leaderboard_data.sort(key=lambda x: x["score"], reverse=True)
+
+    embed = discord.Embed(
+        title="🌈 同性戀排行榜 🏆", color=0xFFFFFF, url="https://www.laxd.com"
+    )
+    embed.set_author(name="121軍團中央指揮部", url="https://www.laxd.com")
+
+    if leaderboard_data:
+        top_user = await bot.fetch_user(leaderboard_data[0]["user_id"])
+        embed.set_thumbnail(url=top_user.display_avatar.url)
+
+    description = ""
+    for i, entry in enumerate(leaderboard_data[:10]):
+        user = await bot.fetch_user(entry["user_id"])
+        description += (
+            f"{i+1}. **{user.display_name}**  "
+            f"{tiers["Rainbow"]["emoji"]}彩虹: {entry['rainbow']} | "
+            f"{tiers["BlackGold"]["emoji"]}黑金: {entry['blackgold']} | "
+            f"{tiers["WhiteGold"]["emoji"]}白金: {entry['whitegold']}\n\n"
+        )
+
+    if not description:
+        description = "No one is on the leaderboard yet."
+
+    embed.description = description
+    embed.set_footer(text="分數加權: 彩虹*90 + 黑金*10 + 白金*3")
+    await ctx.send(embed=embed)
 
 
 if __name__ == "__main__":
