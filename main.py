@@ -10,7 +10,6 @@ from sympy import sympify
 from datetime import datetime, timedelta
 from util import *
 from battle import BattleConfirmation, BattleView
-from lvlup import *
 from image_util import *
 from dotenv import load_dotenv
 
@@ -540,83 +539,7 @@ async def lvlupall(ctx):
         return
 
     inventory = users[user_id].get("inventory", [])
-    promotion_order = list(tiers.keys())
-    upgraded_summary = {}
-
-    while True:
-        upgrades_made_in_pass = 0
-        # Iterate through a copy of inventory as it's modified during the loop
-        for card_to_lvlup in list(inventory):
-            card_name = card_to_lvlup[1]
-            tier_info = card_to_lvlup[5]
-            count = card_to_lvlup[6]
-
-            current_tier_key = next(
-                (
-                    key
-                    for key, value in tiers.items()
-                    if value["text"] == tier_info["text"]
-                ),
-                None,
-            )
-
-            if not current_tier_key:
-                continue
-
-            current_tier_index = promotion_order.index(current_tier_key)
-            if current_tier_index == len(promotion_order) - 1:
-                continue  # Skip max tier
-
-            lvlup_req = tiers[current_tier_key].get("lvlup_req")
-            if not lvlup_req or count < lvlup_req:
-                continue
-
-            # Perform level up
-            num_new_cards = count // lvlup_req
-            remaining_cards = count % lvlup_req
-            upgrades_made_in_pass += num_new_cards
-
-            next_tier_key = promotion_order[current_tier_index + 1]
-            next_tier_info = tiers[next_tier_key]
-
-            if remaining_cards > 0:
-                card_to_lvlup[6] = remaining_cards
-            else:
-                inventory.remove(card_to_lvlup)
-
-            # Add to higher tier
-            higher_tier_card = next(
-                (
-                    c
-                    for c in inventory
-                    if c[1] == card_name and c[5]["text"] == next_tier_info["text"]
-                ),
-                None,
-            )
-
-            if higher_tier_card:
-                higher_tier_card[6] += num_new_cards
-            else:
-                corp, _, desc, img, movies = get_card_by_name(card_name)
-                new_card = [
-                    corp,
-                    card_name,
-                    desc,
-                    img,
-                    movies,
-                    next_tier_info,
-                    num_new_cards,
-                ]
-                inventory.append(new_card)
-
-            # Track summary
-            summary_key = (card_name, current_tier_key, next_tier_key)
-            upgraded_summary[summary_key] = (
-                upgraded_summary.get(summary_key, 0) + num_new_cards
-            )
-
-        if upgrades_made_in_pass == 0:
-            break
+    upgraded_summary = lvlupall_logic(inventory)
 
     if not upgraded_summary:
         await ctx.send("沒有可以升級的卡片。")
@@ -720,7 +643,7 @@ async def leaderboard(ctx):
     leaderboard_data.sort(key=lambda x: x["score"], reverse=True)
 
     embed = discord.Embed(
-        title="🌈 同性戀排行榜 🏆", color=0xFFFFFF, url="https://www.laxd.com"
+        title="🌈 同性戀排行榜 🏆 Top 5", color=0xFFFFFF, url="https://www.laxd.com"
     )
     embed.set_author(name="121軍團中央指揮部", url="https://www.laxd.com")
 
@@ -729,7 +652,7 @@ async def leaderboard(ctx):
         embed.set_thumbnail(url=top_user.display_avatar.url)
 
     description = ""
-    for i, entry in enumerate(leaderboard_data[:10]):
+    for i, entry in enumerate(leaderboard_data[:5]):
         user = await bot.fetch_user(entry["user_id"])
         description += (
             f"{i+1}. **{user.display_name}**  "

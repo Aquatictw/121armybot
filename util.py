@@ -147,6 +147,87 @@ def char_embed(name, desc, img, corp, movies, tier):
     return embed, img_file
 
 
+def lvlupall_logic(inventory):
+    promotion_order = list(tiers.keys())
+    upgraded_summary = {}
+
+    while True:
+        upgrades_made_in_pass = 0
+        # Iterate through a copy of inventory as it's modified during the loop
+        for card_to_lvlup in list(inventory):
+            card_name = card_to_lvlup[1]
+            tier_info = card_to_lvlup[5]
+            count = card_to_lvlup[6]
+
+            current_tier_key = next(
+                (
+                    key
+                    for key, value in tiers.items()
+                    if value["text"] == tier_info["text"]
+                ),
+                None,
+            )
+
+            if not current_tier_key:
+                continue
+
+            current_tier_index = promotion_order.index(current_tier_key)
+            if current_tier_index == len(promotion_order) - 1:
+                continue  # Skip max tier
+
+            lvlup_req = tiers[current_tier_key].get("lvlup_req")
+            if not lvlup_req or count < lvlup_req:
+                continue
+
+            # Perform level up
+            num_new_cards = count // lvlup_req
+            remaining_cards = count % lvlup_req
+            upgrades_made_in_pass += num_new_cards
+
+            next_tier_key = promotion_order[current_tier_index + 1]
+            next_tier_info = tiers[next_tier_key]
+
+            if remaining_cards > 0:
+                card_to_lvlup[6] = remaining_cards
+            else:
+                inventory.remove(card_to_lvlup)
+
+            # Add to higher tier
+            higher_tier_card = next(
+                (
+                    c
+                    for c in inventory
+                    if c[1] == card_name and c[5]["text"] == next_tier_info["text"]
+                ),
+                None,
+            )
+
+            if higher_tier_card:
+                higher_tier_card[6] += num_new_cards
+            else:
+                corp, _, desc, img, movies = get_card_by_name(card_name)
+                new_card = [
+                    corp,
+                    card_name,
+                    desc,
+                    img,
+                    movies,
+                    next_tier_info,
+                    num_new_cards,
+                ]
+                inventory.append(new_card)
+
+            # Track summary
+            summary_key = (card_name, current_tier_key, next_tier_key)
+            upgraded_summary[summary_key] = (
+                upgraded_summary.get(summary_key, 0) + num_new_cards
+            )
+
+        if upgrades_made_in_pass == 0:
+            break
+    return upgraded_summary
+
+
 ITEMS_PER_PAGE = 10
 
 
@@ -174,6 +255,10 @@ class InventoryView(View):
         self.add_item(self.next_button)
 
         self.update_button_states()
+
+    @property
+    def total_cards(self):
+        return sum(item[6] for item in self.inventory)
 
     def get_page_embed(self):
         start = self.current_page * ITEMS_PER_PAGE
@@ -204,7 +289,7 @@ class InventoryView(View):
                 embed.set_image(url="attachment://animated.gif")
 
         embed.set_footer(
-            text=f"第 {self.current_page + 1} 頁 / 共 {self.total_pages} 頁"
+            text=f"第 {self.current_page + 1} 頁 / 共 {self.total_pages} 頁 | 總卡片數: {self.total_cards}"
         )
         return embed
 
@@ -245,3 +330,163 @@ class InventoryView(View):
     def update_button_states(self):
         self.prev_button.disabled = self.current_page == 0
         self.next_button.disabled = self.current_page >= self.total_pages - 1
+
+
+class LvlupView(discord.ui.View):
+    def __init__(self, ctx, inventory, save_callback):
+        super().__init__(timeout=120)
+        self.ctx = ctx
+        self.inventory = inventory
+        self.save_callback = save_callback
+        self.eligible_cards = self.get_eligible_cards()
+        self.add_item(self.create_card_select())
+        self.add_item(self.create_lvlup_button())
+
+    def get_eligible_cards(self):
+        eligible = []
+        promotion_order = list(tiers.keys())
+        for card in self.inventory:
+            tier_text = card[5]["text"]
+            current_tier_key = next(
+                (key for key, value in tiers.items() if value["text"] == tier_text),
+                None,
+            )
+            if not current_tier_key:
+                continue
+
+            current_tier_index = promotion_order.index(current_tier_key)
+            if current_tier_index == len(promotion_order) - 1:
+                continue  # Skip max tier
+
+            lvlup_req = tiers[current_tier_key].get("lvlup_req")
+            if lvlup_req and card[6] >= lvlup_req:
+                eligible.append(card)
+        return eligible
+
+    def create_card_select(self):
+        options = []
+        if not self.eligible_cards:
+            return discord.ui.Select(
+                placeholder="選擇要升級的卡片...",
+            )
+
+        for card in self.eligible_cards:
+            card_name = card[1]
+            tier_name = card[5]["text"]
+            count = card[6]
+            options.append(
+                discord.SelectOption(
+                    label=f"{card_name} ({tier_name}) x{count}",
+                    value=f"{card_name}|{tier_name}",
+                )
+            )
+        select = discord.ui.Select(
+            placeholder="選擇要升級的卡片...",
+            min_values=1,
+            max_values=len(options),
+            options=options,
+        )
+        select.callback = self.select_callback
+        return select
+
+    async def select_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+    def create_lvlup_button(self):
+        button = discord.ui.Button(label="升級", style=discord.ButtonStyle.success)
+        button.callback = self.lvlup_callback
+        return button
+
+    async def lvlup_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+        selected_options = self.children[0].values  # pyright: ignore
+        if not selected_options or selected_options[0] == "none":
+            await interaction.followup.send("請選擇要升級的卡片。")
+            return
+
+        upgraded_summary = {}
+        promotion_order = list(tiers.keys())
+
+        for option_value in selected_options:
+            card_name, tier_name_text = option_value.split("|")
+
+            card_to_lvlup = next(
+                (
+                    c
+                    for c in self.inventory
+                    if c[1] == card_name and c[5]["text"] == tier_name_text
+                ),
+                None,
+            )
+
+            if not card_to_lvlup:
+                continue
+
+            current_tier_key = next(
+                (
+                    key
+                    for key, value in tiers.items()
+                    if value["text"] == tier_name_text
+                ),
+                None,
+            )
+            if not current_tier_key:
+                continue
+
+            lvlup_req = tiers[current_tier_key].get("lvlup_req")
+            if not lvlup_req or card_to_lvlup[6] < lvlup_req:
+                continue
+
+            num_new_cards = card_to_lvlup[6] // lvlup_req
+            remaining_cards = card_to_lvlup[6] % lvlup_req
+
+            current_tier_index = promotion_order.index(current_tier_key)
+            next_tier_key = promotion_order[current_tier_index + 1]
+            next_tier_info = tiers[next_tier_key]
+
+            if remaining_cards > 0:
+                card_to_lvlup[6] = remaining_cards
+            else:
+                self.inventory.remove(card_to_lvlup)
+
+            higher_tier_card = next(
+                (
+                    c
+                    for c in self.inventory
+                    if c[1] == card_name and c[5]["text"] == next_tier_info["text"]
+                ),
+                None,
+            )
+
+            if higher_tier_card:
+                higher_tier_card[6] += num_new_cards
+            else:
+                corp, _, desc, img, movies = get_card_by_name(card_name)
+                new_card = [
+                    corp,
+                    card_name,
+                    desc,
+                    img,
+                    movies,
+                    next_tier_info,
+                    num_new_cards,
+                ]
+                self.inventory.append(new_card)
+
+            summary_key = (card_name, current_tier_key, next_tier_key)
+            upgraded_summary[summary_key] = (
+                upgraded_summary.get(summary_key, 0) + num_new_cards
+            )
+
+        if not upgraded_summary:
+            await interaction.followup.send("沒有可以升級的卡片。")
+        else:
+            self.save_callback()
+            summary_lines = [
+                f"將 {tiers[old_tier]['lvlup_req'] * new_cards} 張 **{name} ({tiers[old_tier]['text']}{tiers[old_tier]['emoji']})** "
+                + f"合成為 {new_cards} 張 **{name} ({tiers[new_tier]['text']}{tiers[new_tier]['emoji']})**"
+                for (name, old_tier, new_tier), new_cards in upgraded_summary.items()
+            ]
+            await interaction.followup.send(
+                "✨ 升級完畢！\n" + "\n".join(summary_lines)
+            )
