@@ -37,12 +37,12 @@ class AttackView(View):
         self.clear_items()
         attacking_cards = self.get_attacking_cards()
         for i, card in enumerate(attacking_cards):
-            if i not in self.used_attackers[self.current_attacker.id]:
-                _, card_name, _, _, _, _, _ = card
+            _, card_name, _, _, _, _, _ = card
+            if card_name[:10] not in self.used_attackers[self.current_attacker.id]:
                 button = Button(
                     label=f"選擇 {card_name[:10]}",
                     style=discord.ButtonStyle.secondary,
-                    custom_id=f"attacker_{i}",
+                    custom_id=f"attacker_{card_name[:10]}",
                     row=i // 5,
                 )
                 button.callback = self.select_attacker
@@ -79,7 +79,7 @@ class AttackView(View):
                 button = Button(
                     label=f"攻擊 {card_name[:10]}",
                     style=discord.ButtonStyle.danger,
-                    custom_id=f"target_{i}",
+                    custom_id=f"target_{card_name[:10]}",
                     row=i // 5,
                 )
                 button.callback = self.select_target
@@ -95,13 +95,13 @@ class AttackView(View):
 
     async def select_attacker(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        self.attacking_card_index = int(interaction.data["custom_id"].split("_")[1])
+        self.attacking_card_index = interaction.data["custom_id"].split("_")[1]
         self.show_target_selection()
         await interaction.edit_original_response(view=self)
 
     async def select_target(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        target_card_index = int(interaction.data["custom_id"].split("_")[1])
+        target_card_index = interaction.data["custom_id"].split("_")[1]
         self.attack_pairs[self.current_attacker.id].append(
             (self.attacking_card_index, target_card_index)
         )
@@ -116,14 +116,13 @@ class AttackView(View):
             self.show_attacker_selection()
             embed = interaction.message.embeds[0]
             embed.title = f"⚔️ 回合 {self.battle_view.round} 戰鬥階段 - {self.current_attacker.display_name} 攻擊！"
+
+            await self.battle_view.process_attacks(self.attack_pairs)
             await interaction.edit_original_response(embed=embed, view=self)
-        else:
-            self.battle_view.attack_pairs = self.attack_pairs
+        else:  # both players finish attacking
             self.battle_view.round += 1
             self.battle_view.turn = self.battle_view.player1
-            await self.battle_view.original_interaction.edit_original_response(
-                embed=self.battle_view.create_embed(), view=self.battle_view
-            )
+            await self.battle_view.process_attacks(self.attack_pairs)
 
 
 class HandView(View):
@@ -138,11 +137,27 @@ class HandView(View):
 
     def show_draw_phase_buttons(self):  # draw card buttons
         self.clear_items()
+        is_p1_turn = self.deploying_player == self.battle_view.player1
+        skipped_draw_flag = (
+            self.battle_view.p1_skipped_draw
+            if is_p1_turn
+            else self.battle_view.p2_skipped_draw
+        )
+
         draw_button = Button(
-            label="抽卡", style=discord.ButtonStyle.success, custom_id="draw_card"
+            label="抽卡", style=discord.ButtonStyle.success, custom_id="draw_card_1"
         )
         draw_button.callback = self.draw_card_action
         self.add_item(draw_button)
+
+        if skipped_draw_flag:
+            draw_2_button = Button(
+                label="抽卡*2",
+                style=discord.ButtonStyle.success,
+                custom_id="draw_card_2",
+            )
+            draw_2_button.callback = self.draw_card_action
+            self.add_item(draw_2_button)
 
         skip_button = Button(
             label="不抽卡", style=discord.ButtonStyle.danger, custom_id="skip_draw"
@@ -180,31 +195,40 @@ class HandView(View):
 
     async def draw_card_action(self, interaction: discord.Interaction):
         await interaction.response.defer()
+        draw_count = int(interaction.data["custom_id"].split("_")[2])
 
+        is_p1_turn = self.deploying_player == self.battle_view.player1
         inventory = (
             self.battle_view.p1_inventory
-            if self.deploying_player == self.battle_view.player1
+            if is_p1_turn
             else self.battle_view.p2_inventory
         )
-        hand = (
-            self.battle_view.p1_hand
-            if self.deploying_player == self.battle_view.player1
-            else self.battle_view.p2_hand
-        )
+        hand = self.battle_view.p1_hand if is_p1_turn else self.battle_view.p2_hand
 
-        if inventory:  # draw a card from inventory and remove it
-            new_card = sample(inventory, 1)[0]
-            inventory.remove(new_card)
-            hand.append(new_card)
+        if inventory:
+            drawn_cards = sample(inventory, min(draw_count, len(inventory)))
+            for card in drawn_cards:
+                inventory.remove(card)
+                hand.append(card)
+
+        if is_p1_turn:
+            self.battle_view.p1_skipped_draw = False
+        else:
+            self.battle_view.p2_skipped_draw = False
 
         self.show_deployment_phase_buttons()
         hand_image = create_hand_image(hand)
-        await interaction.edit_original_response(  # after draw, change to deployment phase
+        await interaction.edit_original_response(
             content="請選擇你要部屬的卡片:", view=self, attachments=[hand_image]
         )
 
     async def skip_draw_action(self, interaction: discord.Interaction):
         await interaction.response.defer()
+        if self.deploying_player == self.battle_view.player1:
+            self.battle_view.p1_skipped_draw = True
+        else:
+            self.battle_view.p2_skipped_draw = True
+
         self.show_deployment_phase_buttons()
         hand = (
             self.battle_view.p1_hand
@@ -212,7 +236,7 @@ class HandView(View):
             else self.battle_view.p2_hand
         )
         hand_image = create_hand_image(hand)
-        await interaction.edit_original_response(  # change to deployment phase
+        await interaction.edit_original_response(
             content="請選擇你要部屬的卡片:", view=self, attachments=[hand_image]
         )
 
@@ -386,6 +410,8 @@ class BattleView(View):
         self.health2 = self.max_health
         self.turn = player1
         self.original_interaction = None
+        self.p1_skipped_draw = False
+        self.p2_skipped_draw = False
 
     def create_embed(self):
         health_bar1_blocks = (
@@ -424,6 +450,16 @@ class BattleView(View):
         )
 
         return embed
+
+    async def process_attacks(self, attack_pairs):
+        self.attack_pairs = attack_pairs
+
+        # We will implement the logic to update the board, table, and hands here in the future.
+        await self.original_interaction.followup.send(f"Attack details: {attack_pairs}")
+
+        await self.original_interaction.edit_original_response(
+            embed=self.create_embed(), view=self
+        )
 
     @discord.ui.button(label="檢視卡片及部屬", style=discord.ButtonStyle.secondary)
     async def view_and_deploy(self, interaction: discord.Interaction, button: Button):
