@@ -11,7 +11,6 @@ from sympy import sympify
 from datetime import datetime, timedelta
 from util import *
 from battle import *
-from lvlup import *
 from image_util import *
 from dotenv import load_dotenv
 
@@ -182,6 +181,16 @@ async def jingshi(ctx):
     with open("./media/jingshi.mp4", "rb") as f:
         mp4_file = discord.File(f, filename="my_video.mp4")
         await ctx.send(file=mp4_file)
+
+
+@bot.command()
+async def holocaust(ctx):
+    await ctx.send("# The Holocaust is NOT REAL")
+    await ctx.send("The Jewish are lying to you, gatekeeping wealth from the society.")
+    await ctx.send("The Jewish are the most greediest race.")
+    await ctx.send(
+        "https://www.adl.org/sites/default/files/images/2023-04/holocaust-denial-1020-3.gif"
+    )
 
 
 @bot.command()

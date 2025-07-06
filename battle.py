@@ -268,7 +268,7 @@ class HandView(View):
 
         is_p1_turn = self.battle_view.turn == self.battle_view.player1
 
-        if is_p1_turn:
+        if is_p1_turn:  # change side
             self.battle_view.turn = self.battle_view.player2
         else:
             self.battle_view.turn = self.battle_view.player1
@@ -280,37 +280,42 @@ class HandView(View):
             self.battle_view.player2.display_name,
         )
 
-        if not is_p1_turn and self.battle_view.round >= 2:
-            # Battle phase starts after P2 finishes deployment and round is 1 or more
-            attacker = choice([self.battle_view.player1, self.battle_view.player2])
-            embed = discord.Embed(
-                title=f"⚔️ 回合 {self.battle_view.round} 戰鬥階段 - 由 {attacker.display_name} 先攻！",
-                description=f"",
-                colour=0xFF0000,
-            )
-            original_embed = self.battle_view.create_embed()
-            embed.set_author(name=original_embed.author.name)
-            embed.add_field(
-                name=f"{self.battle_view.player1.display_name}",
-                value=original_embed.fields[0].value,
-                inline=True,
-            )
-            embed.add_field(
-                name=f"{self.battle_view.player2.display_name}",
-                value=original_embed.fields[1].value,
-                inline=True,
-            )
-            embed.add_field(
-                name="📊 狀態", value=original_embed.fields[2].value, inline=False
-            )
-            embed.set_footer(
-                text=original_embed.footer.text, icon_url=original_embed.footer.icon_url
-            )
-            view = AttackView(self.battle_view, attacker)
-        else:  # if still in round 1
+        if is_p1_turn:
             embed = self.battle_view.create_embed()
             view = self.battle_view
-            self.battle_view.round += 1
+        else:
+            if self.battle_view.round >= 2:
+                # Battle phase when two player finishes deployment and round is 1 or more
+                attacker = choice([self.battle_view.player1, self.battle_view.player2])
+                embed = discord.Embed(
+                    title=f"⚔️ 回合 {self.battle_view.round} 戰鬥階段 - 由 {attacker.display_name} 先攻！",
+                    url="https://laxd.com",
+                    colour=0xFF0000,
+                )
+                original_embed = self.battle_view.create_embed()
+                embed.set_author(name=original_embed.author.name)
+                embed.add_field(
+                    name=f"{self.battle_view.player1.display_name}",
+                    value=original_embed.fields[0].value,
+                    inline=True,
+                )
+                embed.add_field(
+                    name=f"{self.battle_view.player2.display_name}",
+                    value=original_embed.fields[1].value,
+                    inline=True,
+                )
+                embed.add_field(
+                    name="📊 狀態", value=original_embed.fields[2].value, inline=False
+                )
+                embed.set_footer(
+                    text=original_embed.footer.text,
+                    icon_url=original_embed.footer.icon_url,
+                )
+                view = AttackView(self.battle_view, attacker)
+            else:
+                self.battle_view.round += 1
+                embed = self.battle_view.create_embed()
+                view = self.battle_view
 
         await self.original_interaction.edit_original_response(
             embed=embed,
