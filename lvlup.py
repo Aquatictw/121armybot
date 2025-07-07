@@ -8,10 +8,15 @@ class LvlupView(discord.ui.View):
         self.ctx = ctx
         self.inventory = inventory
         self.save_callback = save_callback
+        self.interaction_check = self.interaction_check()
         self.eligible_cards = self.get_eligible_cards()
         self.add_item(self.create_card_select())
         self.add_item(self.create_lvlup_button())
-
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user_id != self.ctx.author.id:
+            await interaction.response.send_message("這不是你的牌組，還想搞事阿", ephemeral=True)
+            return False
+        return True
     def get_eligible_cards(self):
         eligible = []
         promotion_order = list(tiers.keys())
@@ -69,6 +74,8 @@ class LvlupView(discord.ui.View):
 
     async def lvlup_callback(self, interaction: discord.Interaction):
         await interaction.response.defer()
+        if interaction.user.id != self.ctx.author.id:
+
         selected_options = self.children[0].values  # pyright: ignore
         if not selected_options or selected_options[0] == "none":
             await interaction.followup.send("請選擇要升級的卡片。")
