@@ -10,6 +10,7 @@ from sympy import sympify
 from datetime import datetime, timedelta
 from util import *
 from battle import BattleConfirmation, BattleView
+from lvlup import *
 from image_util import *
 from dotenv import load_dotenv
 
