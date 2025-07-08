@@ -4,12 +4,13 @@ from discord.ext import commands, tasks
 from typing import List
 import re
 import json
+import copy
 import os
 import random
 from sympy import sympify
 from datetime import datetime, timedelta
 from util import *
-from battle import BattleConfirmation, BattleView
+from battle import *
 from image_util import *
 from dotenv import load_dotenv
 
@@ -180,6 +181,16 @@ async def jingshi(ctx):
     with open("./media/jingshi.mp4", "rb") as f:
         mp4_file = discord.File(f, filename="my_video.mp4")
         await ctx.send(file=mp4_file)
+
+
+@bot.command()
+async def holocaust(ctx):
+    await ctx.send("# The Holocaust is NOT REAL")
+    await ctx.send("The Jewish are lying to you, gatekeeping wealth from the society.")
+    await ctx.send("The Jewish are the most greediest race.")
+    await ctx.send(
+        "https://www.adl.org/sites/default/files/images/2023-04/holocaust-denial-1020-3.gif"
+    )
 
 
 @bot.command()
@@ -557,7 +568,7 @@ async def lvlupall(ctx):
 @bot.command()
 async def battle(ctx, member: discord.Member):
     if member == ctx.author:
-        await ctx.send("你不能挑戰自己。")
+        await ctx.reply("你不能挑戰自己。")
         return
 
     p1_id = ctx.author.id
@@ -582,17 +593,20 @@ async def battle(ctx, member: discord.Member):
     await view.wait()  # wait for battle confimation
 
     if view.battle_accepted:  # create battle view
-        p1_inventory = users[p1_id]["inventory"]
-        p2_inventory = users[p2_id]["inventory"]
+        p1_inventory = copy.deepcopy(
+            users[p1_id]["inventory"]
+        )  # deep copy to prevent altering inventory
+        p2_inventory = copy.deepcopy(users[p2_id]["inventory"])
         battle_view = BattleView(ctx.author, member, p1_inventory, p2_inventory)
+
         battle_image = create_table_image(
-            battle_view.p1_cards,
-            battle_view.p2_cards,
+            battle_view.p1_table,
+            battle_view.p2_table,
             ctx.author.display_name,
             member.display_name,
         )
         embed = battle_view.create_embed()
-        message = await ctx.send(embed=embed, view=battle_view, file=battle_image)
+        await ctx.send(embed=embed, view=battle_view, file=battle_image)
 
 
 @bot.command()
