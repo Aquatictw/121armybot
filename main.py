@@ -51,9 +51,9 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 bot_channelId = 1341007196917469275
 roll_channelId = 1388890411443028118
 test_channelId = 1389936899917090877
-bangchi_id = 836041486515568670
-aquatic_id = 274463901037494274
-guild_id = 1043107075150065694
+aquatic_id = os.getenv("AQUATIC_ID")
+bangchi_id = os.getenv("BANGCHI_ID")
+guild_id = os.getenv("GUILD_ID")
 vcChannel_id = 1390329071442985110
 
 tokugawa_map = {
@@ -184,6 +184,55 @@ async def jingshi(ctx):
 
 
 @bot.command()
+async def claimjingshi(ctx):
+    user_id = ctx.author.id
+    card_name = "耿忠富"
+    tier_name = "Gold"
+
+    if user_id not in users:
+        users[user_id] = {
+            "last_reset": datetime.now(timezone(timedelta(hours=8))),
+            "rolls": MAX_ROLLS,
+            "inventory": [],
+            "captain": None,
+        }
+
+    inventory = users[user_id].get("inventory", [])
+
+    card_info = get_card_by_name(card_name)
+    tier_info = tiers[tier_name]
+
+    existing_card = next(
+        (
+            item
+            for item in inventory
+            if item[1] == card_name and item[5]["text"] == tier_info["text"]
+        ),
+        None,
+    )
+
+    if existing_card:
+        await ctx.reply(f"你已經有 **{card_name} ({tier_info['text']})**了!")
+
+    else:
+        corp, name, desc, img, movies = card_info
+        new_card = [corp, name, desc, img, movies, tier_info, 1]
+        inventory.append(new_card)
+
+        users[user_id]["inventory"] = inventory
+        save_count()
+
+        await ctx.reply(f"你領取了 **{card_name} ({tier_info['text']})**!")
+        embed, img_file = char_embed(name, desc, img, corp, movies, tiers[tier_name])
+        await ctx.reply(embed=embed, file=img_file)
+
+        with open("./media/jingshi.mp4", "rb") as f:
+            mp4_file = discord.File(f, filename="my_video.mp4")
+            await ctx.send(file=mp4_file)
+            await ctx.send("## そう高く 果てなく")
+
+
+@bot.command()
 async def holocaust(ctx):
     await ctx.send("# The Holocaust is NOT REAL")
     await ctx.send("The Jewish are lying to you, gatekeeping wealth from the society.")
@@ -266,11 +315,16 @@ async def homocaptain(ctx: commands.Context, name: str, tier_name: str):
 
     inventory = users[user_id].get("inventory", [])
 
+    if tier_name not in tiers:
+        await ctx.reply(f"找不到等級 {tier_name}")
+        return
+
+    tier_info = tiers[tier_name]
     captain_char = next(
         (
             item
             for item in inventory
-            if item[1] == name and item[5]["text"] == tier_name
+            if item[1] == name and item[5]["text"] == tier_info["text"]
         ),
         None,
     )
@@ -278,9 +332,9 @@ async def homocaptain(ctx: commands.Context, name: str, tier_name: str):
     if captain_char:
         users[user_id]["captain"] = captain_char
         save_count()
-        await ctx.reply(f"你已將 **{name} ({captain_char[5]["text"]})** 設為你的隊長！")
+        await ctx.reply(f"你已將 **{name} ({tier_info['text']})** 設為你的隊長！")
     else:
-        await ctx.reply(f"找不到卡片 {name} ({tier_name})")
+        await ctx.reply(f"找不到卡片 {name} ({tier_info['text']})")
 
 
 @homocaptain.autocomplete("name")
@@ -323,18 +377,18 @@ async def hc_tier_autocomplete(
     if not selected_card_name:
         return []
 
-    available_tiers = sorted(
-        list(
-            set(
-                [item[5]["text"] for item in inventory if item[1] == selected_card_name]
-            )
-        )
-    )
+    available_tiers = []
+    for item in inventory:
+        if item[1] == selected_card_name:
+            tier_text = item[5]["text"]
+            for tier_key, tier_value in tiers.items():
+                if tier_value["text"] == tier_text:
+                    available_tiers.append(tier_key)
 
     return [
-        app_commands.Choice(name=tier, value=tier)
-        for tier in available_tiers
-        if current.lower() in tier.lower()
+        app_commands.Choice(name=tier_key, value=tier_key)
+        for tier_key in available_tiers
+        if current.lower() in tier_key.lower()
     ]
 
 
@@ -424,7 +478,19 @@ async def help(ctx):
     )
     embed.add_field(
         name="破真角色抽卡",
-        value="🔴 僅限 ``#惡臭抽卡``\n``!homo/hm``: 抽取破真角色 \n``!myhomo/mh/inv``: 查看同性戀戰隊\n``!leaderboard/lb``: 查看同性戀排行榜\n``!search [角色名稱] [等級代號]``: 查詢卡牌\n``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n\n> 每兩小時十抽，從重置後第一抽開始倒數\n\n* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%",
+        value=(
+            "🔴 僅限 ``#惡臭抽卡``\n"
+            "``!homo/hm``: 抽取破真角色 \n"
+            "``!myhomo/mh/inv``: 查看同性戀戰隊\n"
+            "``!leaderboard/lb``: 查看同性戀排行榜\n"
+            "``!search [角色名稱] [等級代號]``: 查詢卡牌\n"
+            "``/lvlup和/lvlupall``: 碎片合成角色\n"
+            "``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n"
+            "> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n"
+            "> 碎片合成規則: 3男銅=>手銀, 5手銀=>射金, 8射金=>白金, 8白金=>黑金, 10黑金=>彩虹\n\n"
+            "> 每兩小時十抽，從重置後第一抽開始倒數, 系統會自動ping你\n\n"
+            "* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%"
+        ),
         inline=False,
     )
 
