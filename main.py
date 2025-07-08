@@ -28,7 +28,7 @@ current_count = 0
 last_user_id = 0
 high_score = 0
 high_score_time = ""
-mentioned_users = []
+mentioned_users = [857520546627321866, 718825534339153930]
 
 with open("count.txt", "r") as f:
     p1, p2, p3, high_score_time = f.read().strip().split(",")
@@ -50,6 +50,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 bot_channelId = 1341007196917469275
 roll_channelId = 1388890411443028118
 test_channelId = 1389936899917090877
+bangchi_id = 836041486515568670
 aquatic_id = 274463901037494274
 guild_id = 1043107075150065694
 vcChannel_id = 1390329071442985110
