@@ -51,9 +51,9 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 bot_channelId = 1341007196917469275
 roll_channelId = 1388890411443028118
 test_channelId = 1389936899917090877
-aquatic_id = os.getenv("AQUATIC_ID")
-bangchi_id = os.getenv("BANGCHI_ID")
-guild_id = os.getenv("GUILD_ID")
+aquatic_id = int(os.getenv("AQUATIC_ID"))  # pyright: ignore
+bangchi_id = int(os.getenv("BANGCHI_ID"))  # pyright: ignore
+guild_id = int(os.getenv("GUILD_ID"))  # pyright: ignore
 vcChannel_id = 1390329071442985110
 
 tokugawa_map = {
@@ -711,12 +711,14 @@ async def leaderboard(ctx):
                 whitegold_count += card_count
 
         total_score = rainbow_count * 90 + blackgold_count * 10 + whitegold_count * 3
+        user = await bot.fetch_user(user_id)
         leaderboard_data.append(
             {
                 "user_id": user_id,
-                "rainbow": rainbow_count,
-                "blackgold": blackgold_count,
-                "whitegold": whitegold_count,
+                "user_name": user.display_name,
+                "Rainbow": rainbow_count,
+                "BlackGold": blackgold_count,
+                "WhiteGold": whitegold_count,
                 "score": total_score,
             }
         )
@@ -734,12 +736,11 @@ async def leaderboard(ctx):
 
     description = ""
     for i, entry in enumerate(leaderboard_data[:5]):
-        user = await bot.fetch_user(entry["user_id"])
         description += (
-            f"{i+1}. **{user.display_name}**  "
-            f"{tiers["Rainbow"]["emoji"]}彩虹: {entry['rainbow']} | "
-            f"{tiers["BlackGold"]["emoji"]}黑金: {entry['blackgold']} | "
-            f"{tiers["WhiteGold"]["emoji"]}白金: {entry['whitegold']}\n\n"
+            f"{i+1}. **{entry["user_name"]}**  "
+            f"{tiers["Rainbow"]["emoji"]}彩虹: {entry['Rainbow']} | "
+            f"{tiers["BlackGold"]["emoji"]}黑金: {entry['BlackGold']} | "
+            f"{tiers["WhiteGold"]["emoji"]}白金: {entry['WhiteGold']}\n\n"
         )
 
     if not description:
@@ -747,7 +748,11 @@ async def leaderboard(ctx):
 
     embed.description = description
     embed.set_footer(text="分數加權: 彩虹*90 + 黑金*10 + 白金*3")
-    await ctx.send(embed=embed)
+
+    file = create_leaderboard_image(leaderboard_data[:5])
+    embed.set_image(url="attachment://leaderboard.png")
+
+    await ctx.send(embed=embed, file=file)
 
 
 if __name__ == "__main__":

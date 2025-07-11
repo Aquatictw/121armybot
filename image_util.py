@@ -5,6 +5,11 @@ import requests
 import json
 import hashlib
 import os
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import matplotlib.font_manager as fm
+
 
 CACHE_DIR = "./cached_images"
 CACHE_MAP_FILE = os.path.join(CACHE_DIR, "image_cache_map.json")
@@ -216,7 +221,6 @@ def create_hand_image(hand_cards):
 
 
 def create_table_image(p1_cards, p2_cards, player1_name, player2_name):
-
     PADDING = 20
 
     p1_processed, p1_card_content_height = _process_cards(p1_cards)
@@ -352,3 +356,138 @@ def create_table_image(p1_cards, p2_cards, player1_name, player2_name):
     background.save(buffer, format="PNG")
     buffer.seek(0)
     return discord.File(fp=buffer, filename="battle.png")
+
+
+def create_leaderboard_image(leaderboard_data):
+    df = pd.DataFrame(leaderboard_data)
+    df.set_index("user_id", inplace=True)
+    df["total_score"] = (
+        df["Rainbow"] * 90 + df["BlackGold"] * 10 + df["WhiteGold"] * 3
+    )  # Calculate Total Score
+
+    # Melt the DataFrame to long format for grouped bars
+    data = df.reset_index().melt(
+        id_vars=["user_id", "user_name"],
+        value_vars=["Rainbow", "BlackGold", "WhiteGold"],
+        var_name="sub_category",
+        value_name="value",
+    )
+    data.rename(columns={"user_id": "category"}, inplace=True)
+
+    # Load Font
+    font_path = "./media/GenWanMin2-M.ttc"
+    custom_font = fm.FontProperties(fname=font_path)
+    plt.style.use("default")
+    fig, ax = plt.subplots(figsize=(16, 12))
+
+    response = requests.get("https://i.postimg.cc/hvzdgBjQ/lowqu.png")
+    response.raise_for_status()
+    bg_image = Image.open(BytesIO(response.content))
+    bg_array = np.array(bg_image)
+
+    user_order = df.index.tolist()
+    pivot_df = data.pivot(
+        index="category", columns="sub_category", values="value"
+    ).fillna(0)
+    pivot_df = pivot_df.reindex(user_order)  # reindex
+    pivot_df["user_name"] = df.loc[pivot_df.index, "user_name"]
+    pivot_df.set_index("user_name", inplace=True)
+    pivot_df = pivot_df[["Rainbow", "BlackGold", "WhiteGold"]]
+    pivot_df.columns = ["彩虹", "黑金", "白金"]
+    colors = {"彩虹": "#FF0000", "黑金": "#000000", "白金": "#ffd700"}
+
+    ax2 = ax.twinx()  # secondary y-axis for total score
+    total_scores_dict = df["total_score"].to_dict()
+    user_id_to_name = df["user_name"].to_dict()
+    total_scores = pd.Series(index=pivot_df.index, dtype=float)
+    for user_name in pivot_df.index:
+        user_id = df[df["user_name"] == user_name].index[0]
+        total_scores.loc[user_name] = total_scores_dict[user_id]
+
+    # Plot total score bars on secondary axis (transparent with gray outline)
+    x_positions = range(len(pivot_df))
+    ax2.bar(
+        x_positions,
+        total_scores,
+        width=0.95,
+        color="none",
+        edgecolor="gray",
+        linewidth=3.5,
+        label="總分",
+        zorder=1,
+    )
+
+    pivot_df.plot(
+        kind="bar",
+        ax=ax,
+        color=colors,
+        width=0.95,
+        edgecolor="black",
+        linewidth=0.5,
+        zorder=2,
+    )
+
+    ax.imshow(
+        bg_array,
+        extent=[ax.get_xlim()[0], ax.get_xlim()[1], ax.get_ylim()[0], ax.get_ylim()[1]],
+        aspect="auto",
+        alpha=0.15,
+        zorder=3,
+    )
+
+    hatches = {"彩虹": "///", "黑金": "///", "白金": "///"}  # Diagonal Stripes
+    for i, (category, hatch) in enumerate(hatches.items()):
+        bars = ax.patches[i :: len(hatches)]  # Every 3rd bar starting from index i
+        for bar in bars:
+            bar.set_hatch(hatch)
+            bar.set_alpha(0.85)  # Slightly transparent to make stripes more subtle
+
+    # Set fonts for labels on primary axis
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontproperties(custom_font)
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center", fontsize=28)
+    plt.setp(ax.get_yticklabels(), fontsize=28)
+
+    # Set fonts for secondary y-axis
+    for label in ax2.get_yticklabels():
+        label.set_fontproperties(custom_font)
+    plt.setp(ax2.get_yticklabels(), fontsize=28)
+
+    ax.set_ylabel(
+        "卡片數量",
+        fontsize=32,
+        fontproperties=custom_font,
+    )
+    ax2.set_ylabel(
+        "總分",
+        fontsize=32,
+        fontproperties=custom_font,
+    )
+
+    legend = ax.legend(  # Legend
+        title="卡片等級",
+        loc="upper right",
+    )
+    plt.setp(legend.get_texts(), fontproperties=custom_font, fontsize=32)
+    plt.setp(legend.get_title(), fontproperties=custom_font, fontsize=28)
+
+    # Add grid for better readability
+    ax.grid(True, alpha=0.3, axis="y")
+    ax.set_axisbelow(True)
+
+    # Reduce padding on left and right
+    ax.margins(x=0.05)
+    ax.set_xlabel("")
+    plt.tight_layout()
+
+    buffer = BytesIO()  # Save
+    plt.savefig(
+        buffer,
+        format="PNG",
+        dpi=300,
+        bbox_inches="tight",
+        edgecolor="none",
+    )
+    buffer.seek(0)
+    plt.close(fig)
+    return discord.File(fp=buffer, filename="leaderboard.png")
