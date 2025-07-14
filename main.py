@@ -51,9 +51,9 @@ bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 bot_channelId = 1341007196917469275
 roll_channelId = 1388890411443028118
 test_channelId = 1389936899917090877
-aquatic_id = int(os.getenv("AQUATIC_ID"))  # pyright: ignore
-bangchi_id = int(os.getenv("BANGCHI_ID"))  # pyright: ignore
-guild_id = int(os.getenv("GUILD_ID"))  # pyright: ignore
+aquatic_id = int(os.getenv("AQUATIC_ID", "0"))  # provide fallback value
+bangchi_id = int(os.getenv("BANGCHI_ID", "0"))
+guild_id = int(os.getenv("GUILD_ID", "0"))
 vcChannel_id = 1390329071442985110
 
 tokugawa_map = {
@@ -127,9 +127,17 @@ async def handle_roll(ctx):
         users[user_id]["rolls"] -= 1
         character = get_random_char()
         corp, name, desc, img, movies, tier = character
-
+        is_special_tier = tier["text"] in [
+            "白金、Semen",
+            "黑金、雪",
+            "彩虹、Ultra HOMO",
+        ]
+        kwargs = (
+            {} if is_special_tier else {"delete_after": 30.0}
+        )  # pass in auto delete karg if tier is not special
         await ctx.send(
-            f"{ctx.author.mention}✨ 你抽中了 **{name}**  (剩**{users[user_id]["rolls"]}**個Roll)"
+            f"{ctx.author.mention}✨ 你抽中了 **{name}**  (剩**{users[user_id]["rolls"]}**個Roll)",
+            **kwargs,
         )
 
         # Check if the character already exists in the inventory
@@ -151,12 +159,13 @@ async def handle_roll(ctx):
             users[user_id]["inventory"].append(character_with_count)
 
         embed, img_file = char_embed(name, desc, img, corp, movies, tier)
-        await ctx.send(embed=embed, file=img_file)
+        await ctx.send(embed=embed, file=img_file, **kwargs)
 
     else:
         _, _, delta = have_time_passed(users[user_id]["last_reset"], 2)
         await ctx.send(
-            f"{ctx.author.mention} 你沒有Roll了! Roll將在 **{delta}** 後重置"
+            f"{ctx.author.mention} 你沒有Roll了! Roll將在 **{delta}** 後重置",
+            delete_after=30.0,
         )
 
     save_count()
@@ -251,7 +260,7 @@ async def yjsnpi(ctx):
 
 @bot.command(aliases=["hm"])
 async def homo(ctx):
-    if ctx.channel.id != roll_channelId and ctx.channel.id != test_channelId:
+    if ctx.channel.id != roll_channelId:
         embed = discord.Embed(
             title="請在``#惡臭抽卡``抽",
             description="請勿隨地脫雪，謝謝 ",
@@ -568,7 +577,7 @@ async def on_message(message):
     await bot.process_commands(message)  # also process the message as commands
 
 
-@tasks.loop(minutes=3.0)
+@tasks.loop(seconds=30.0)
 async def play_audio_loop():
     global vc_client
     try:
@@ -673,22 +682,6 @@ async def battle(ctx, member: discord.Member):
         )
         embed = battle_view.create_embed()
         await ctx.send(embed=embed, view=battle_view, file=battle_image)
-
-
-@bot.command()
-async def draw(ctx):
-    user_id = ctx.author.id
-    inventory = users[user_id].get("inventory", [])
-
-    users[user_id]["deck"] = []  # clear inventory
-    index = random.randrange(0, len(inventory) - 1)
-    users[user_id]["deck"].append(inventory[index])  # add the random card
-
-    deck = users[user_id].get("deck", [])
-    view = InventoryView(ctx, deck)
-    embed = view.get_page_embed()
-    embed = view.get_page_embed()
-    await ctx.send(embed=embed, view=view)
 
 
 @bot.command(aliases=["lb"])

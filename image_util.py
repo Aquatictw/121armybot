@@ -12,13 +12,6 @@ import matplotlib.font_manager as fm
 
 
 CACHE_DIR = "./cached_images"
-CACHE_MAP_FILE = os.path.join(CACHE_DIR, "image_cache_map.json")
-
-try:
-    with open(CACHE_MAP_FILE, "r") as f:
-        _char_img_cache_map = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    _char_img_cache_map = {}
 
 
 def char_img(base_img, tier):
@@ -28,18 +21,14 @@ def char_img(base_img, tier):
 
     # Determine file extension based on tier type
     file_extension = "gif" if tier["text"] == "彩虹、Ultra HOMO" else "png"
-    cached_file_name = f"{cache_key}.{file_extension}"
-    cached_file_path = os.path.join(CACHE_DIR, cached_file_name)
+    cached_file_path = os.path.join(CACHE_DIR, f"{cache_key}.{file_extension}")
 
     # return cached image if exists
-    if cache_key in _char_img_cache_map and os.path.exists(cached_file_path):
-        with open(cached_file_path, "rb") as f:
-            buffer = BytesIO(f.read())
-        buffer.seek(0)
+    if os.path.exists(cached_file_path):
         if tier["text"] == "彩虹、Ultra HOMO":
-            return discord.File(fp=buffer, filename="animated.gif")
+            return discord.File(cached_file_path, filename="animated.gif")
         else:
-            return discord.File(fp=buffer, filename="image.png")
+            return discord.File(cached_file_path, filename="image.png")
 
     response = requests.get(base_img)
     img = Image.open(BytesIO(response.content)).convert("RGBA")
@@ -84,34 +73,26 @@ def char_img(base_img, tier):
         buffer.seek(0)
         img_file = discord.File(fp=buffer, filename="image.png")
 
-    # Update cache map and save
-    _char_img_cache_map[cache_key] = cached_file_name
-    with open(CACHE_MAP_FILE, "w") as f:
-        json.dump(_char_img_cache_map, f)
-
     return img_file
 
 
 def rainbow_img(img, logo):
     gradient_gif = Image.open("./media/rainbow.gif")
-
     frames = []
 
     for frame in ImageSequence.Iterator(gradient_gif):
+        # Start with the base image and paste logo
+        base = img.copy().convert("RGB")
+        base.paste(logo, (0, 0), logo)
 
-        base = img.copy()
-        base.paste(logo, (0, 0), logo)  # paste logo
+        # Process the rainbow frame
+        rainbow_frame = frame.convert("RGB").resize(base.size, Image.LANCZOS)
 
-        rainbow_frame = frame.convert("RGBA").resize(base.size, Image.LANCZOS)  # type: ignore
-        white_bg = Image.new("RGB", base.size, (255, 255, 255))
-        white_bg.paste(
-            rainbow_frame, (0, 0), rainbow_frame
-        )  # Use rainbow frame as mask
+        # Create a mask to control where the rainbow effect is applied
+        # Option 1: Apply rainbow everywhere with low opacity
+        final_frame = Image.blend(base, rainbow_frame, 0.2)  # Lower blend factor
 
-        base = base.convert("RGB")
-        colored = Image.blend(base, white_bg, 0.3)
-
-        frames.append(colored)
+        frames.append(final_frame)
 
     buffer = BytesIO()
     frames[0].save(
@@ -119,10 +100,9 @@ def rainbow_img(img, logo):
         format="GIF",
         save_all=True,
         append_images=frames[1:],
-        duration=gradient_gif.info.get("duration", 100),  # ms per frame
+        duration=gradient_gif.info.get("duration", 100),
         loop=0,
         disposal=2,
-        transparency=0,
     )
     buffer.seek(0)
     return discord.File(fp=buffer, filename="animated.gif")
