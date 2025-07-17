@@ -1,4 +1,5 @@
 import random
+import re
 import ast
 import discord
 from discord.ui import View, Button
@@ -243,7 +244,8 @@ class InventoryView(View):
         self.captain = captain
         if self.captain:  # create a captain img file to be reused later
             _, _, _, img_url, _, tier, _ = self.captain
-            self.img_file = char_img(img_url, tier)
+            self.captain_url = img_url
+            self.captain_tier = tier
 
         self.prev_button = Button(label="⬅️", style=discord.ButtonStyle.secondary)
         self.next_button = Button(label="➡️", style=discord.ButtonStyle.secondary)
@@ -302,10 +304,10 @@ class InventoryView(View):
             self.current_page -= 1
             self.update_button_states()
             embed = self.get_page_embed()
-            if self.captain:
-                self.img_file.fp.seek(0)
+            if self.captain:  # player has a captain
+                img_file = char_img(self.captain_url, self.captain_tier)
                 await interaction.response.edit_message(
-                    embed=embed, view=self, attachments=[self.img_file]
+                    embed=embed, view=self, attachments=[img_file]
                 )
             else:
                 await interaction.response.edit_message(
@@ -317,10 +319,10 @@ class InventoryView(View):
             self.current_page += 1
             self.update_button_states()
             embed = self.get_page_embed()
-            if self.captain:
-                self.img_file.fp.seek(0)
+            if self.captain:  # player has a captain
+                img_file = char_img(self.captain_url, self.captain_tier)
                 await interaction.response.edit_message(
-                    embed=embed, view=self, attachments=[self.img_file]
+                    embed=embed, view=self, attachments=[img_file]
                 )
             else:
                 await interaction.response.edit_message(
@@ -490,3 +492,15 @@ class LvlupView(discord.ui.View):
             await interaction.followup.send(
                 "✨ 升級完畢！\n" + "\n".join(summary_lines)
             )
+
+
+EMOJI_REGEX = re.compile(
+    r"^(?:<a?:\w+:\d+>|\s|[\u2000-\u3300\U0001F000-\U0001FAFF"
+    r"\U00002702-\U000027B0\U0001F600-\U0001F64F"
+    r"\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF"
+    r"\U0001F1E6-\U0001F1FF]+)+$"
+)
+
+
+def is_emoji_only(text: str) -> bool:
+    return bool(EMOJI_REGEX.fullmatch(text.strip()))
