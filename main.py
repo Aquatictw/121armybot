@@ -6,10 +6,10 @@ import re
 import json
 import copy
 import os
-import random
 from sympy import sympify
 from datetime import datetime, timedelta
 from util import *
+from chatbot.chat import *
 from battle import *
 from image_util import *
 from dotenv import load_dotenv
@@ -29,7 +29,6 @@ current_count = 0
 last_user_id = 0
 high_score = 0
 high_score_time = ""
-mentioned_users = [857520546627321866, 718825534339153930]
 
 with open("count.txt", "r") as f:
     p1, p2, p3, high_score_time = f.read().strip().split(",")
@@ -43,12 +42,12 @@ with open("users.json", "r") as f:
             d["inventory"] = []  # fallback
         if "captain" not in d:
             d["captain"] = None
-        if "deck" not in d:
-            d["deck"] = []
+        if "mentioned" not in d:
+            d["mentioned"] = False
     users = {int(k): v for k, v in data.items()}
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
-bot_channelId = 1341007196917469275
+count_channelId = 1341007196917469275
 roll_channelId = 1388890411443028118
 test_channelId = 1389936899917090877
 aquatic_id = int(os.getenv("AQUATIC_ID", "0"))  # provide fallback value
@@ -94,6 +93,7 @@ def save_count():
                 "rolls": v["rolls"],
                 "inventory": v.get("inventory", []),
                 "captain": v.get("captain"),
+                "mentioned": v.get("mentioned", False),
             }
             for uid, v in users.items()
         }
@@ -106,6 +106,8 @@ def can_roll(user_id):
             "last_reset": datetime.now(timezone(timedelta(hours=8))),
             "rolls": MAX_ROLLS,
             "inventory": [],
+            "captain": None,
+            "mentioned": False,
         }
         return True
 
@@ -120,10 +122,10 @@ def can_roll(user_id):
 
 async def handle_roll(ctx):
     user_id = ctx.author.id
-    if user_id in mentioned_users:
-        mentioned_users.remove(user_id)
 
     if can_roll(user_id):
+        if users[user_id].get("mentioned", False):
+            users[user_id]["mentioned"] = False
         users[user_id]["rolls"] -= 1
         character = get_random_char()
         corp, name, desc, img, movies, tier = character
@@ -204,6 +206,7 @@ async def claimjingshi(ctx):
             "rolls": MAX_ROLLS,
             "inventory": [],
             "captain": None,
+            "mentioned": False,
         }
 
     inventory = users[user_id].get("inventory", [])
@@ -283,20 +286,21 @@ async def inv(ctx):
     view = InventoryView(ctx, inventory, captain)
     embed = view.get_page_embed()
     if view.captain:
-        await ctx.send(embed=embed, view=view, file=view.img_file)
+        img_file = char_img(view.captain_url, view.captain_tier)
+        await ctx.send(embed=embed, view=view, file=img_file)
     else:
         await ctx.send(embed=embed, view=view)
 
 
 @tasks.loop(seconds=30.0)
 async def checktime_loop():
-    global mentioned_users
     for id, data in users.items():
         _, flag, _ = have_time_passed(data["last_reset"], 2)
-        if flag and id not in mentioned_users:
+        if flag and not data.get("mentioned", False):
             target_user = await bot.fetch_user(int(id))
             await roll_channel.send(f"{target_user.mention} 你可以Roll了!")
-            mentioned_users.append(id)
+            data["mentioned"] = True
+            save_count()
 
 
 @bot.command(aliases=["ct"])
@@ -519,7 +523,7 @@ async def on_message(message):
     if message.stickers:
         return
 
-    if message.channel.id == bot_channelId:
+    if message.channel.id == count_channelId:
         msg = parse_emoji_expression(message.content)
         global current_count
         global last_user_id
@@ -573,6 +577,18 @@ async def on_message(message):
 
         except Exception:
             pass
+
+    if (
+        message.channel.id == roll_channelId
+        and bot.user in message.mentions
+        and not message.content.startswith("!")
+        and not is_emoji_only(message.content)
+    ):  # ai chatbot
+
+        content = message.content.replace(f"<@{bot.user.id}>", "").strip()
+        reply = await chat_reply(message.author.id, content)
+        if reply:
+            await message.channel.send(reply)
 
     await bot.process_commands(message)  # also process the message as commands
 
@@ -746,6 +762,35 @@ async def leaderboard(ctx):
     embed.set_image(url="attachment://leaderboard.png")
 
     await ctx.send(embed=embed, file=file)
+
+
+@bot.command()
+async def chat(ctx):
+    if ctx.channel.id != roll_channelId:
+        embed = discord.Embed(
+            title="請在``#惡臭抽卡``聊天",
+            description="請勿隨地脫雪，謝謝 ",
+            colour=0xFF0000,
+        )
+        await ctx.reply(embed=embed)
+    else:
+        inventory = users[ctx.author.id].get("inventory", [])
+        msg = await init_chat(ctx.author.id, ctx.author.display_name, inventory)
+        await ctx.send(msg)
+
+
+@bot.command()
+async def stopchat(ctx):
+    if ctx.channel.id != roll_channelId:
+        embed = discord.Embed(
+            title="請在``#惡臭抽卡``聊天",
+            description="請勿隨地脫雪，謝謝 ",
+            colour=0xFF0000,
+        )
+        await ctx.reply(embed=embed)
+    else:
+        reply = stop_chat(ctx.author.id)
+        await ctx.send(reply)
 
 
 if __name__ == "__main__":
