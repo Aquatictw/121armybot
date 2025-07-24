@@ -588,46 +588,66 @@ async def purge(ctx):
         await ctx.send("deleted", delete_after=5)
 
 
-@bot.command()
-async def help(ctx):
+@bot.command(name='help')
+async def help_command(ctx):
     embed = discord.Embed(
-        title="⚙️迫真指揮官使用手冊⚙️",
-        description="``!jingshi``: 正在跳舞的男高中生.bb\n``!yjsnpi``: 野獸吼叫",
+        title="⚙️ 指令列表 ⚙️",
         url="https://video.laxd.com/a/content/20200422UhsQT474",
-        colour=0x804000,
+        color=0xffffff
     )
 
-    embed.set_author(name="迫真指揮官")
+    embed.set_author(name="迫真指揮官 Discord Bot 使用手冊")
+    
+    # 基礎指令
+    basic_commands = (
+        "`!help` - 顯示完整使用手冊\n"
+        "`!highscore` - 查看當前雪量和最高紀錄"
+    )
+    embed.add_field(name="🔧 基礎指令", value=basic_commands, inline=False)
+    
+    # 抽卡相關
+    gacha_commands = (
+        "`!homo` / `!hm` - 抽取角色卡片\n"
+        "`!myhomo` / `!mh` / `!inv` - 查看個人背包\n"
+        "`/homocaptain` / `/hc [角色名] [等級]` - 設定隊長\n"
+        "`/search [角色名] [等級]` - 搜尋特定卡片\n"
+        "`/exchange [角色名] [等級] [數量]` - 兌換卡片為淫幣\n"
+        "`/lvlup` - 升級卡片\n"
+        "`/lvlupall` - 自動升級所有可升級卡片\n"
+        "`!checktime` / `!ct` - 查看抽卡重置時間"
+    )
+    embed.add_field(name="🎴 抽卡相關", value=gacha_commands, inline=False)
+    
+    # 社交功能
+    social_commands = (
+        "`!leaderboard` / `!lb` - 查看排行榜\n"
+        "`!battle [@用戶]` - 挑戰其他玩家\n"
+        "`!chat` - 開啟AI聊天模式\n"
+        "`!stopchat` - 關閉AI聊天模式\n"
+        "`!shop` - 開啟商店"
+    )
+    embed.add_field(name="🤝 社交功能", value=social_commands, inline=False)
+    
+    # 娛樂指令
+    entertainment_commands = (
+        "`!jingshi` - 正在跳舞的男高中生\n"
+        "`!yjsnpi` - 野獸吼叫\n"
+        "`!claimjingshi` - 領取特殊角色"
+    )
+    embed.add_field(name="🎮 娛樂指令", value=entertainment_commands, inline=False)
 
-    embed.add_field(
-        name="德川接龍💩",
-        value="🔴 僅限 ``#惡臭接龍``\n🔴 不接受使用正常數字表示法\n> **:tokugawa:** 表示 1，**:tokugawa_2:** 表示 2，依此類推，**:tokugawa_10:** 表示 0.\n\n``!highscore``:  顯示**目前雪量**及**最高紀錄雪量**🏆\n---------\n",
-        inline=False,
+    links = (
+        "[角色列表](https://docs.google.com/spreadsheets/d/1liKVpqp1I6E-aVjLsv1A3MQnH-48SM7FJxbl0j-FbvI/edit?gid=0#gid=0)\n"
+        "[GitHub開源](https://github.com/Aquatictw/121armybot)"
     )
-    embed.add_field(
-        name="破真角色抽卡",
-        value=(
-            "🔴 僅限 ``#惡臭抽卡``\n"
-            "``!homo/hm``: 抽取破真角色 \n"
-            "``!myhomo/mh/inv``: 查看同性戀戰隊\n"
-            "``!leaderboard/lb``: 查看同性戀排行榜\n"
-            "``!search [角色名稱] [等級代號]``: 查詢卡牌\n"
-            "``/lvlup和/lvlupall``: 碎片合成角色\n"
-            "``!homocaptain/hc [角色名稱] [等級代號]``: 將角色設為同性戀隊長\n"
-            "> 等級代號: Bronze, Silver, Gold, WhiteGold, BlackGold, Rainbow\n"
-            "> 碎片合成規則: 3男銅=>手銀, 5手銀=>射金, 8射金=>白金, 8白金=>黑金, 10黑金=>彩虹\n\n"
-            "> 每兩小時十抽，從重置後第一抽開始倒數, 系統會自動ping你\n\n"
-            "* 卡片等級 | 概率\n**男銅** | 65%\n**手銀** | 25%\n**射金** | 8%\n**白金 - Semen** | 1.5%\n**黑金 - 雪** | 0.45%\n**彩虹 - Ultra HOMO** | 0.05%"
-        ),
-        inline=False,
-    )
+    embed.add_field(name="🔗 相關連結", value=links, inline=False)
 
     embed.set_image(
-        url="https://megapx-assets.dcard.tw/images/f9c8cc97-8502-4772-8668-c8484c6474bd/640.jpeg"
+        url="https://i.postimg.cc/0N26gbb6/Screenshot-1.png"
     )
-
+    
     embed.set_footer(text="肛門灌活鰻魚🐍")
-
+    
     await ctx.send(embed=embed)
 
 
