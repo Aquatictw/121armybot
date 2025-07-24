@@ -44,6 +44,8 @@ with open("users.json", "r") as f:
             d["captain"] = None
         if "mentioned" not in d:
             d["mentioned"] = False
+        if "coins" not in d:
+            d["coins"] = 0
     users = {int(k): v for k, v in data.items()}
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
@@ -68,6 +70,7 @@ def save_count():
                 "inventory": v.get("inventory", []),
                 "captain": v.get("captain"),
                 "mentioned": v.get("mentioned", False),
+                "coins": v.get("coins", 0),
             }
             for uid, v in users.items()
         }
@@ -82,6 +85,7 @@ def can_roll(user_id):
             "inventory": [],
             "captain": None,
             "mentioned": False,
+            "coins": 0,
         }
         return True
 
@@ -257,7 +261,8 @@ async def inv(ctx):
 
     inventory = users[user_id].get("inventory", [])
     captain = users[user_id].get("captain")
-    view = InventoryView(ctx, inventory, captain)
+    coins = users[user_id].get("coins", 0)
+    view = InventoryView(ctx, inventory, coins, captain)
     embed = view.get_page_embed()
     if view.captain:
         img_file = char_img(view.captain_url, view.captain_tier)
@@ -430,6 +435,142 @@ async def search_tier_autocomplete(
         ]  # return max 25 completions (discord limit)
     ]
 
+
+# Add the exchange command
+@bot.hybrid_command(
+    name="exchange",
+    with_app_command=True,
+    description="將卡片兌換成淫幣",
+    aliases=["ex"],
+)
+@app_commands.guilds(discord.Object(id=GUILD_ID))
+async def exchange(ctx: commands.Context, name: str, tier_name: str, amount: int = 1):
+    user_id = ctx.author.id
+    if user_id not in users:
+        await ctx.reply("你沒有任何卡片。")
+        return
+
+    if tier_name not in EXCHANGE_RATES:
+        await ctx.reply("只能兌換白金、黑金或彩虹卡片。")
+        return
+
+    if amount <= 0:
+        await ctx.reply("兌換數量必須大於0。")
+        return
+
+    inventory = users[user_id].get("inventory", [])
+    tier_info = tiers[tier_name]
+
+    target_card = next(
+        (
+            item
+            for item in inventory
+            if item[1] == name and item[5]["text"] == tier_info["text"]
+        ),
+        None,
+    )
+
+    if not target_card:
+        await ctx.reply(f"你沒有 **{name} ({tier_info['text']})**。")
+        return
+
+    if target_card[6] < amount:
+        await ctx.reply(
+            f"你只有 {target_card[6]} 張 **{name} ({tier_info['text']})**，無法兌換 {amount} 張。"
+        )
+        return
+
+    # Perform exchange
+    coins_earned = EXCHANGE_RATES[tier_name] * amount
+    target_card[6] -= amount
+
+    if target_card[6] == 0:
+        inventory.remove(target_card)
+        # Check if this was the captain card
+        if users[user_id].get("captain") == target_card:
+            users[user_id]["captain"] = None
+
+    users[user_id]["coins"] = users[user_id].get("coins", 0) + coins_earned
+    save_count()
+
+    await ctx.reply(
+        f"成功兌換 {amount} 張 **{name} ({tier_info['text']}{tier_info['emoji']})** "
+        f"獲得 **{coins_earned} 淫幣<:yjsnpicoin:1397831330267398225>**！\n"
+        f"目前淫幣: **{users[user_id]['coins']} <:yjsnpicoin:1397831330267398225>**"
+    )
+
+
+@exchange.autocomplete("name")
+async def exchange_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+    user_id = interaction.user.id
+    if user_id not in users:
+        return []
+
+    inventory = users[user_id].get("inventory", [])
+    # Only show cards that can be exchanged (WhiteGold, BlackGold, Rainbow)
+    exchangeable_cards = [
+        item[1]
+        for item in inventory
+        if any(tier_key in item[5]["text"] for tier_key in ["白金", "黑金", "彩虹"])
+    ]
+    card_names = sorted(list(set(exchangeable_cards)))
+
+    filtered_card_names = [
+        card_name for card_name in card_names if current.lower() in card_name.lower()
+    ]
+    return [
+        app_commands.Choice(name=card_name, value=card_name)
+        for card_name in filtered_card_names[:25]
+    ]
+
+
+@exchange.autocomplete("tier_name")
+async def exchange_tier_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
+    user_id = interaction.user.id
+    if user_id not in users:
+        return []
+
+    inventory = users[user_id].get("inventory", [])
+    selected_card_name = interaction.namespace.name
+
+    if not selected_card_name:
+        return []
+
+    available_tiers = []
+    for item in inventory:
+        if item[1] == selected_card_name:
+            tier_text = item[5]["text"]
+            # Only allow exchangeable tiers
+            for tier_key, tier_value in tiers.items():
+                if tier_value["text"] == tier_text and tier_key in EXCHANGE_RATES:
+                    available_tiers.append(tier_key)
+
+    return [
+        app_commands.Choice(name=tier_key, value=tier_key)
+        for tier_key in available_tiers
+        if current.lower() in tier_key.lower()
+    ]
+
+@bot.command()
+async def shop(ctx):
+    user = ctx.author.id
+    coins = users[user].get("coins", 0)
+    if coins == 0:
+        await ctx.reply("你沒有淫幣，他媽窮鬼")
+    else:
+        embed = discord.Embed(title="🏪 肛門訓練器商店", color=0x0099ff)
+        embed.add_field(name="淫幣數量", value=f"{coins} 🪙", inline=False)
+        embed.add_field(name="商品", value="🦯 細馬眼棒 - 10🪙 \n🗞️ 肛門鰻魚輸送管 - 100🪙 ", inline=False)
+        embed.set_footer(text="點擊按鈕購買商品！")
+        
+        view = ShopView(user, coins)
+        await ctx.send(embed=embed, view=view)
 
 @bot.command()
 async def highscore(ctx):

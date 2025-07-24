@@ -84,6 +84,8 @@ tokugawa_map = {
 }
 
 
+EXCHANGE_RATES = {"WhiteGold": 1, "BlackGold": 3, "Rainbow": 20}
+
 response = requests.get(url)
 content = response.content.decode("utf-8")
 
@@ -260,7 +262,7 @@ ITEMS_PER_PAGE = 10
 
 
 class InventoryView(View):
-    def __init__(self, ctx, inventory, captain=None):
+    def __init__(self, ctx, inventory, coins, captain=None):
         super().__init__(timeout=60)  # auto disable after 60s
         self.ctx = ctx
         self.inventory = sorted(
@@ -273,6 +275,7 @@ class InventoryView(View):
             _, _, _, img_url, _, tier, _ = self.captain
             self.captain_url = img_url
             self.captain_tier = tier
+        self.coins = coins
 
         self.prev_button = Button(label="⬅️", style=discord.ButtonStyle.secondary)
         self.next_button = Button(label="➡️", style=discord.ButtonStyle.secondary)
@@ -300,6 +303,9 @@ class InventoryView(View):
             description = "\n".join(
                 f"{'📌' if item == self.captain else ''}**{item[1]}** | {item[5]['text']}{item[5]['emoji']}{f' (x{item[6]})' if item[6] >= 2 else ''}"
                 for item in page_items
+            )
+            description += (
+                f"\n\n淫幣數量: **{self.coins}** <:yjsnpicoin:1397831330267398225>"
             )
 
         embed = discord.Embed(
@@ -359,6 +365,48 @@ class InventoryView(View):
     def update_button_states(self):
         self.prev_button.disabled = self.current_page == 0
         self.next_button.disabled = self.current_page >= self.total_pages - 1
+
+
+class ShopView(discord.ui.View):
+    def __init__(self, user, coins):
+        super().__init__(timeout=60)
+        self.user = user
+        self.coins = coins
+
+    @discord.ui.button(label="細馬眼棒", style=discord.ButtonStyle.primary, emoji="🦯")
+    async def buy_item1(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if interaction.user.id != self.user:
+            await interaction.response.send_message("阿你是在點三小", ephemeral=True)
+            return
+
+        if self.coins < 10:
+            await interaction.response.send_message(
+                "淫幣不足！你需要 10 個淫幣購買 細馬眼棒。"
+            )
+            return
+
+        embed = discord.Embed(
+            title="購買成功！",
+            description=f"你購買了細馬眼棒！\n剩餘淫幣: {self.coins}",
+            color=0x00FF00,
+        )
+        await interaction.response.edit_message(
+            embed=embed, view=ShopView(self.user, self.coins)
+        )
+
+    @discord.ui.button(
+        label="查看物品", style=discord.ButtonStyle.secondary, emoji="📦"
+    )
+    async def view_items(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if interaction.user.id != self.user:
+            await interaction.response.send_message("阿你是在點三小", ephemeral=True)
+            return
+
+        await interaction.response.send_message("還沒寫好", ephemeral=True)
 
 
 class LvlupView(discord.ui.View):
