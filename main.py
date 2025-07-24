@@ -46,6 +46,8 @@ with open("users.json", "r") as f:
             d["mentioned"] = False
         if "coins" not in d:
             d["coins"] = 0
+        if "max_roll" not in d:
+            d["max_roll"] = MAX_ROLLS
     users = {int(k): v for k, v in data.items()}
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
@@ -71,6 +73,7 @@ def save_count():
                 "captain": v.get("captain"),
                 "mentioned": v.get("mentioned", False),
                 "coins": v.get("coins", 0),
+                "max_roll": v.get("max_roll", MAX_ROLLS)
             }
             for uid, v in users.items()
         }
@@ -78,7 +81,7 @@ def save_count():
 
 
 def can_roll(user_id):
-    if not users.get(user_id):
+    if not users.get(user_id): #initialize a user
         users[user_id] = {
             "last_reset": datetime.now(timezone(timedelta(hours=8))),
             "rolls": MAX_ROLLS,
@@ -86,6 +89,7 @@ def can_roll(user_id):
             "captain": None,
             "mentioned": False,
             "coins": 0,
+            "max_roll": MAX_ROLLS
         }
         return True
 
@@ -93,7 +97,7 @@ def can_roll(user_id):
 
     if flag:
         users[user_id]["last_reset"] = now
-        users[user_id]["rolls"] = MAX_ROLLS
+        users[user_id]["rolls"] = users[user_id]["max_roll"]  # reset player's roll count
 
     return users[user_id]["rolls"] > 0
 
@@ -185,6 +189,8 @@ async def claimjingshi(ctx):
             "inventory": [],
             "captain": None,
             "mentioned": False,
+            "coins": 0,
+            "max_roll": MAX_ROLLS,
         }
 
     inventory = users[user_id].get("inventory", [])
@@ -451,7 +457,7 @@ async def exchange(ctx: commands.Context, name: str, tier_name: str, amount: int
         return
 
     if tier_name not in EXCHANGE_RATES:
-        await ctx.reply("只能兌換白金、黑金或彩虹卡片。")
+        await ctx.reply("只能兌換射金、白金、黑金或彩虹卡片。")
         return
 
     if amount <= 0:
@@ -510,11 +516,11 @@ async def exchange_name_autocomplete(
         return []
 
     inventory = users[user_id].get("inventory", [])
-    # Only show cards that can be exchanged (WhiteGold, BlackGold, Rainbow)
+
     exchangeable_cards = [
         item[1]
         for item in inventory
-        if any(tier_key in item[5]["text"] for tier_key in ["白金", "黑金", "彩虹"])
+        if any(tier_key in item[5]["text"] for tier_key in ["射金","白金", "黑金", "彩虹"])
     ]
     card_names = sorted(list(set(exchangeable_cards)))
 
@@ -557,20 +563,18 @@ async def exchange_tier_autocomplete(
         if current.lower() in tier_key.lower()
     ]
 
+
 @bot.command()
 async def shop(ctx):
-    user = ctx.author.id
-    coins = users[user].get("coins", 0)
+    user_id = ctx.author.id
+    coins = users[user_id].get("coins", 0)
     if coins == 0:
         await ctx.reply("你沒有淫幣，他媽窮鬼")
     else:
-        embed = discord.Embed(title="🏪 肛門訓練器商店", color=0x0099ff)
-        embed.add_field(name="淫幣數量", value=f"{coins} 🪙", inline=False)
-        embed.add_field(name="商品", value="🦯 細馬眼棒 - 10🪙 \n🗞️ 肛門鰻魚輸送管 - 100🪙 ", inline=False)
-        embed.set_footer(text="點擊按鈕購買商品！")
-        
-        view = ShopView(user, coins)
+        view = ShopView(user_id, users)
+        embed = view.get_page_embed()
         await ctx.send(embed=embed, view=view)
+
 
 @bot.command()
 async def highscore(ctx):
@@ -588,23 +592,22 @@ async def purge(ctx):
         await ctx.send("deleted", delete_after=5)
 
 
-@bot.command(name='help')
+@bot.command(name="help")
 async def help_command(ctx):
     embed = discord.Embed(
         title="⚙️ 指令列表 ⚙️",
         url="https://video.laxd.com/a/content/20200422UhsQT474",
-        color=0xffffff
+        color=0xFFFFFF,
     )
 
     embed.set_author(name="迫真指揮官 Discord Bot 使用手冊")
-    
+
     # 基礎指令
     basic_commands = (
-        "`!help` - 顯示完整使用手冊\n"
-        "`!highscore` - 查看當前雪量和最高紀錄"
+        "`!help` - 顯示完整使用手冊\n" "`!highscore` - 查看當前雪量和最高紀錄"
     )
     embed.add_field(name="🔧 基礎指令", value=basic_commands, inline=False)
-    
+
     # 抽卡相關
     gacha_commands = (
         "`!homo` / `!hm` - 抽取角色卡片\n"
@@ -617,7 +620,37 @@ async def help_command(ctx):
         "`!checktime` / `!ct` - 查看抽卡重置時間"
     )
     embed.add_field(name="🎴 抽卡相關", value=gacha_commands, inline=False)
-    
+
+    # 稀有度機率
+    rarity_rates = (
+        "男銅 (65%)\n"
+        "手銀 (25%)\n"
+        "射金 (8%)\n"
+        "白金 - Semen (1.5%)\n"
+        "黑金 - 雪 (0.45%)\n"
+        "彩虹 - Ultra HOMO (0.05%)"
+    )
+    embed.add_field(name="🎲 稀有度機率", value=rarity_rates, inline=True)
+
+    # 合成規則
+    synthesis_rules = (
+        "3張男銅 → 1張手銀\n"
+        "5張手銀 → 1張射金\n"
+        "8張射金 → 1張白金\n"
+        "8張白金 → 1張黑金\n"
+        "10張黑金 → 1張彩虹"
+    )
+    embed.add_field(name="⚗️ 合成規則", value=synthesis_rules, inline=True)
+
+    # 兌換比率
+    exchange_rates = (
+        "射金: 1 <:yjsnpicoin:1397831330267398225>\n"
+        "白金: 6 <:yjsnpicoin:1397831330267398225>\n"
+        "黑金: 18 <:yjsnpicoin:1397831330267398225>\n"
+        "彩虹: 160 <:yjsnpicoin:1397831330267398225>"
+    )
+    embed.add_field(name="💰 兌換比率", value=exchange_rates, inline=True)
+
     # 社交功能
     social_commands = (
         "`!leaderboard` / `!lb` - 查看排行榜\n"
@@ -627,7 +660,7 @@ async def help_command(ctx):
         "`!shop` - 開啟商店"
     )
     embed.add_field(name="🤝 社交功能", value=social_commands, inline=False)
-    
+
     # 娛樂指令
     entertainment_commands = (
         "`!jingshi` - 正在跳舞的男高中生\n"
@@ -642,12 +675,10 @@ async def help_command(ctx):
     )
     embed.add_field(name="🔗 相關連結", value=links, inline=False)
 
-    embed.set_image(
-        url="https://i.postimg.cc/0N26gbb6/Screenshot-1.png"
-    )
-    
+    embed.set_image(url="https://i.postimg.cc/0N26gbb6/Screenshot-1.png")
+
     embed.set_footer(text="肛門灌活鰻魚🐍")
-    
+
     await ctx.send(embed=embed)
 
 
