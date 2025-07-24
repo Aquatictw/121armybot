@@ -70,6 +70,19 @@ TIER_ORDER = {
     "\u7537\u9285": 5,
 }
 
+tokugawa_map = {
+    "<:tokugawa:1228747556306161774>": "1",
+    "<:tokugawa_02:1282511585281314869>": "2",
+    "<:tokugawa_03:1289519032008966227>": "3",
+    "<:tokugawa_04:1314835422609674243>": "4",
+    "<:tokugawa_05:1329192567627059213>": "5",
+    "<:tokugawa_06:1332371207907053579>": "6",
+    "<:tokugawa_07:1332371319253106689>": "7",
+    "<:tokugawa_08:1332371687517192223>": "8",
+    "<:tokugawa_09:1332650900740767744>": "9",
+    "<:tokugawa_10:1333780328447213599>": "0",
+}
+
 
 response = requests.get(url)
 content = response.content.decode("utf-8")
@@ -78,6 +91,20 @@ reader = csv.reader(StringIO(content))
 next(reader)  # Skip header row
 rows = list(reader)
 num_rows = len(rows)
+
+
+def parse_emoji_expression(input_str):
+    emoji_pattern = "|".join(re.escape(k) for k in tokugawa_map.keys())
+    emoji_regex = re.compile(emoji_pattern)
+
+    input_str = input_str.replace(" ", "")  # remove spaces
+
+    def replace(match):
+        full_emoji = match.group(0)
+        return tokugawa_map.get(full_emoji, "")  # will always match
+
+    result = emoji_regex.sub(replace, input_str)
+    return result
 
 
 def get_card_by_name(

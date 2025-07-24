@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from typing import List
-import re
 import json
 import copy
 import os
@@ -13,6 +12,7 @@ from chatbot.chat import *
 from battle import *
 from image_util import *
 from dotenv import load_dotenv
+from commit_notifier import CommitNotifier
 
 load_dotenv()
 token = os.getenv("DISCORD_TOKEN")
@@ -47,40 +47,14 @@ with open("users.json", "r") as f:
     users = {int(k): v for k, v in data.items()}
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
-count_channelId = 1341007196917469275
-roll_channelId = 1388890411443028118
-test_channelId = 1389936899917090877
-aquatic_id = int(os.getenv("AQUATIC_ID", "0"))  # provide fallback value
-bangchi_id = int(os.getenv("BANGCHI_ID", "0"))
-guild_id = int(os.getenv("GUILD_ID", "0"))
-vcChannel_id = 1390329071442985110
-
-tokugawa_map = {
-    "<:tokugawa:1228747556306161774>": "1",
-    "<:tokugawa_02:1282511585281314869>": "2",
-    "<:tokugawa_03:1289519032008966227>": "3",
-    "<:tokugawa_04:1314835422609674243>": "4",
-    "<:tokugawa_05:1329192567627059213>": "5",
-    "<:tokugawa_06:1332371207907053579>": "6",
-    "<:tokugawa_07:1332371319253106689>": "7",
-    "<:tokugawa_08:1332371687517192223>": "8",
-    "<:tokugawa_09:1332650900740767744>": "9",
-    "<:tokugawa_10:1333780328447213599>": "0",
-}
-
-
-def parse_emoji_expression(input_str):
-    emoji_pattern = "|".join(re.escape(k) for k in tokugawa_map.keys())
-    emoji_regex = re.compile(emoji_pattern)
-
-    input_str = input_str.replace(" ", "")  # remove spaces
-
-    def replace(match):
-        full_emoji = match.group(0)
-        return tokugawa_map.get(full_emoji, "")  # will always match
-
-    result = emoji_regex.sub(replace, input_str)
-    return result
+commit_notifier = CommitNotifier(bot)
+COUNT_CHANNEL_ID = 1341007196917469275
+ROLL_CHANNEL_ID = 1388890411443028118
+DEV_CHANNEL_ID = 1389936899917090877
+VC_CHANNEL_ID = 1390329071442985110
+AQUAITC_ID = int(os.getenv("AQUATIC_ID", "0"))  # provide fallback value
+BANGCHI_ID = int(os.getenv("BANGCHI_ID", "0"))
+GUILD_ID = int(os.getenv("GUILD_ID", "0"))
 
 
 def save_count():
@@ -177,13 +151,13 @@ async def handle_roll(ctx):
 async def on_ready():
     global vc_channel, roll_channel
     synced = await bot.tree.sync(
-        guild=discord.Object(id=guild_id)
+        guild=discord.Object(id=GUILD_ID)
     )  # sync slash commands
-    vc_channel = bot.get_channel(vcChannel_id)  # initilize vc_channel
-    roll_channel = bot.get_channel(roll_channelId)
+    vc_channel = bot.get_channel(VC_CHANNEL_ID)  # initilize vc_channel
+    roll_channel = bot.get_channel(ROLL_CHANNEL_ID)
     play_audio_loop.start()
     checktime_loop.start()
-    print(f"Synced {len(synced)} commands.")
+    await commit_notifier.check_and_notify_commits()
     print(f"{bot.user} has connected")
 
 
@@ -263,7 +237,7 @@ async def yjsnpi(ctx):
 
 @bot.command(aliases=["hm"])
 async def homo(ctx):
-    if ctx.channel.id != roll_channelId:
+    if ctx.channel.id != ROLL_CHANNEL_ID:
         embed = discord.Embed(
             title="請在``#惡臭抽卡``抽",
             description="請勿隨地脫雪，謝謝 ",
@@ -319,7 +293,7 @@ async def checktime(ctx):
     description="將角色設為同性戀隊長",
     aliases=["hc"],
 )
-@app_commands.guilds(discord.Object(id=guild_id))
+@app_commands.guilds(discord.Object(id=GUILD_ID))
 async def homocaptain(ctx: commands.Context, name: str, tier_name: str):
     user_id = ctx.author.id
     if user_id not in users:
@@ -411,7 +385,7 @@ async def hc_tier_autocomplete(
     description="查詢卡片",
     aliases=["s"],
 )
-@app_commands.guilds(discord.Object(id=guild_id))
+@app_commands.guilds(discord.Object(id=GUILD_ID))
 async def search(ctx: commands.Context, input_name: str, tier_name: str):
     await ctx.defer()
     corp, name, desc, img, movies = get_card_by_name(input_name)
@@ -468,7 +442,7 @@ async def highscore(ctx):
 @bot.command()
 @commands.has_permissions(manage_messages=True)
 async def purge(ctx):
-    if ctx.author.id == aquatic_id:
+    if ctx.author.id == AQUAITC_ID:
         await ctx.channel.purge(limit=10)
         await ctx.send("deleted", delete_after=5)
 
@@ -523,7 +497,7 @@ async def on_message(message):
     if message.stickers:
         return
 
-    if message.channel.id == count_channelId:
+    if message.channel.id == COUNT_CHANNEL_ID:
         msg = parse_emoji_expression(message.content)
         global current_count
         global last_user_id
@@ -579,7 +553,7 @@ async def on_message(message):
             pass
 
     if (
-        message.channel.id == roll_channelId
+        message.channel.id == ROLL_CHANNEL_ID
         and bot.user in message.mentions
         and not message.content.startswith("!")
         and not is_emoji_only(message.content)
@@ -613,7 +587,7 @@ async def play_audio_loop():
     description="升級卡片",
     aliases=["merge"],
 )
-@app_commands.guilds(discord.Object(id=guild_id))
+@app_commands.guilds(discord.Object(id=GUILD_ID))
 async def lvlup(ctx):
     user_id = ctx.author.id
     if user_id not in users:
@@ -634,7 +608,7 @@ async def lvlup(ctx):
     description="自動升級所有滿足條件的卡片",
     aliases=["mergeall"],
 )
-@app_commands.guilds(discord.Object(id=guild_id))
+@app_commands.guilds(discord.Object(id=GUILD_ID))
 async def lvlupall(ctx):
     user_id = ctx.author.id
     if user_id not in users:
@@ -653,7 +627,31 @@ async def lvlupall(ctx):
             + f"合成為 {new_cards} 張 **{name} ({tiers[new_tier]["text"]}{tiers[new_tier]["emoji"]})**"
             for (name, old_tier, new_tier), new_cards in upgraded_summary.items()
         ]
-        await ctx.send("✨ 升級完畢！\n" + "\n".join(summary_lines))
+
+        # Split into batches to avoid Discord's 2000 character limit
+        batches = []
+        current_batch = []
+        current_length = len("✨ 升級完畢！\n")
+
+        for line in summary_lines:
+            line_length = len(line) + 1
+            if current_length + line_length > 2000 and current_batch:
+                batches.append(current_batch)
+                current_batch = [line]
+                current_length = len(line) + 1
+            else:
+                current_batch.append(line)
+                current_length += line_length
+
+        if current_batch:
+            batches.append(current_batch)
+
+        # Send batches
+        for i, batch in enumerate(batches):
+            if i == 0:
+                await ctx.send("✨ 升級完畢！\n" + "\n".join(batch))
+            else:
+                await ctx.send("\n".join(batch))
 
 
 @bot.command()
@@ -766,7 +764,7 @@ async def leaderboard(ctx):
 
 @bot.command()
 async def chat(ctx):
-    if ctx.channel.id != roll_channelId:
+    if ctx.channel.id != ROLL_CHANNEL_ID:
         embed = discord.Embed(
             title="請在``#惡臭抽卡``聊天",
             description="請勿隨地脫雪，謝謝 ",
@@ -781,7 +779,7 @@ async def chat(ctx):
 
 @bot.command()
 async def stopchat(ctx):
-    if ctx.channel.id != roll_channelId:
+    if ctx.channel.id != ROLL_CHANNEL_ID:
         embed = discord.Embed(
             title="請在``#惡臭抽卡``聊天",
             description="請勿隨地脫雪，謝謝 ",
