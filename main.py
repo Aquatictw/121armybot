@@ -534,6 +534,28 @@ async def exchange_name_autocomplete(interaction: discord.Interaction, current: 
     return [app_commands.Choice(name=name, value=name) for name in sorted(available_names) 
             if current.lower() in name.lower()][:25]
 
+@exchange.autocomplete("amount")
+async def exchange_amount_autocomplete(interaction: discord.Interaction, current: str):
+    user_id = interaction.user.id
+    selected_tier = interaction.namespace.tier_name
+    selected_name = interaction.namespace.name
+    
+    if user_id not in users or not selected_tier or not selected_name or selected_tier not in EXCHANGE_RATES:
+        return []
+    
+    inventory = users[user_id].get("inventory", [])
+    tier_info = tiers[selected_tier]
+    
+    target_card = next((item for item in inventory 
+                       if item[1] == selected_name and item[5]["text"] == tier_info["text"]), None)
+    
+    if not target_card:
+        return []
+    
+    max_amount = min(target_card[6], 25)  # Limit to 25 choices or actual amount
+    amounts = [str(i) for i in range(1, max_amount + 1) if current in str(i)]
+    
+    return [app_commands.Choice(name=f"{amount} 張", value=int(amount)) for amount in amounts]
 
 
 @bot.command()
