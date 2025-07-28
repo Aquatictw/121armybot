@@ -450,7 +450,7 @@ async def search_tier_autocomplete(
     aliases=["ex"],
 )
 @app_commands.guilds(discord.Object(id=GUILD_ID))
-async def exchange(ctx: commands.Context, name: str, tier_name: str, amount: int = 1):
+async def exchange(ctx: commands.Context, tier_name: str, name: str, amount: int = 1):
     user_id = ctx.author.id
     if user_id not in users:
         await ctx.reply("你沒有任何卡片。")
@@ -505,63 +505,35 @@ async def exchange(ctx: commands.Context, name: str, tier_name: str, amount: int
         f"目前淫幣: **{users[user_id]['coins']} <:yjsnpicoin:1397831330267398225>**"
     )
 
+@exchange.autocomplete("tier_name")
+async def exchange_tier_autocomplete(interaction: discord.Interaction, current: str):
+    if interaction.user.id not in users:
+        return []
+    
+    inventory = users[interaction.user.id].get("inventory", [])
+    available_tiers = {tier_key for item in inventory for tier_key, tier_value in tiers.items() 
+                      if tier_value["text"] == item[5]["text"] and tier_key in EXCHANGE_RATES}
+    
+    return [app_commands.Choice(name=tier, value=tier) for tier in sorted(available_tiers) 
+            if current.lower() in tier.lower()][:25]
+
 
 @exchange.autocomplete("name")
-async def exchange_name_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> List[app_commands.Choice[str]]:
+async def exchange_name_autocomplete(interaction: discord.Interaction, current: str):
     user_id = interaction.user.id
-    if user_id not in users:
+    selected_tier = interaction.namespace.tier_name
+    
+    if user_id not in users or not selected_tier or selected_tier not in EXCHANGE_RATES:
         return []
-
+    
     inventory = users[user_id].get("inventory", [])
+    tier_info = tiers[selected_tier]
+    
+    available_names = {item[1] for item in inventory if item[5]["text"] == tier_info["text"]}
+    
+    return [app_commands.Choice(name=name, value=name) for name in sorted(available_names) 
+            if current.lower() in name.lower()][:25]
 
-    exchangeable_cards = [
-        item[1]
-        for item in inventory
-        if any(tier_key in item[5]["text"] for tier_key in ["射金","白金", "黑金", "彩虹"])
-    ]
-    card_names = sorted(list(set(exchangeable_cards)))
-
-    filtered_card_names = [
-        card_name for card_name in card_names if current.lower() in card_name.lower()
-    ]
-    return [
-        app_commands.Choice(name=card_name, value=card_name)
-        for card_name in filtered_card_names[:25]
-    ]
-
-
-@exchange.autocomplete("tier_name")
-async def exchange_tier_autocomplete(
-    interaction: discord.Interaction,
-    current: str,
-) -> List[app_commands.Choice[str]]:
-    user_id = interaction.user.id
-    if user_id not in users:
-        return []
-
-    inventory = users[user_id].get("inventory", [])
-    selected_card_name = interaction.namespace.name
-
-    if not selected_card_name:
-        return []
-
-    available_tiers = []
-    for item in inventory:
-        if item[1] == selected_card_name:
-            tier_text = item[5]["text"]
-            # Only allow exchangeable tiers
-            for tier_key, tier_value in tiers.items():
-                if tier_value["text"] == tier_text and tier_key in EXCHANGE_RATES:
-                    available_tiers.append(tier_key)
-
-    return [
-        app_commands.Choice(name=tier_key, value=tier_key)
-        for tier_key in available_tiers
-        if current.lower() in tier_key.lower()
-    ]
 
 
 @bot.command()
@@ -614,7 +586,7 @@ async def help_command(ctx):
         "`!myhomo` / `!mh` / `!inv` - 查看個人背包\n"
         "`/homocaptain` / `/hc [角色名] [等級]` - 設定隊長\n"
         "`/search [角色名] [等級]` - 搜尋特定卡片\n"
-        "`/exchange [角色名] [等級] [數量]` - 兌換卡片為淫幣\n"
+        "`/exchange [等級] [角色名] [數量]` - 兌換卡片為淫幣\n"
         "`/lvlup` - 升級卡片\n"
         "`/lvlupall` - 自動升級所有可升級卡片\n"
         "`!checktime` / `!ct` - 查看抽卡重置時間"
@@ -630,7 +602,7 @@ async def help_command(ctx):
         "黑金 - 雪 (0.45%)\n"
         "彩虹 - Ultra HOMO (0.05%)"
     )
-    embed.add_field(name="🎲 稀有度機率", value=rarity_rates, inline=True)
+    embed.add_field(name="🎲 等級機率", value=rarity_rates, inline=True)
 
     # 合成規則
     synthesis_rules = (
