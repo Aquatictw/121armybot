@@ -73,7 +73,7 @@ def save_count():
                 "captain": v.get("captain"),
                 "mentioned": v.get("mentioned", False),
                 "coins": v.get("coins", 0),
-                "max_roll": v.get("max_roll", MAX_ROLLS)
+                "max_roll": v.get("max_roll", MAX_ROLLS),
             }
             for uid, v in users.items()
         }
@@ -81,7 +81,7 @@ def save_count():
 
 
 def can_roll(user_id):
-    if not users.get(user_id): #initialize a user
+    if not users.get(user_id):  # initialize a user
         users[user_id] = {
             "last_reset": datetime.now(timezone(timedelta(hours=8))),
             "rolls": MAX_ROLLS,
@@ -89,7 +89,7 @@ def can_roll(user_id):
             "captain": None,
             "mentioned": False,
             "coins": 0,
-            "max_roll": MAX_ROLLS
+            "max_roll": MAX_ROLLS,
         }
         return True
 
@@ -97,7 +97,9 @@ def can_roll(user_id):
 
     if flag:
         users[user_id]["last_reset"] = now
-        users[user_id]["rolls"] = users[user_id]["max_roll"]  # reset player's roll count
+        users[user_id]["rolls"] = users[user_id][
+            "max_roll"
+        ]  # reset player's roll count
 
     return users[user_id]["rolls"] > 0
 
@@ -505,57 +507,85 @@ async def exchange(ctx: commands.Context, tier_name: str, name: str, amount: int
         f"目前淫幣: **{users[user_id]['coins']} <:yjsnpicoin:1397831330267398225>**"
     )
 
+
 @exchange.autocomplete("tier_name")
 async def exchange_tier_autocomplete(interaction: discord.Interaction, current: str):
     if interaction.user.id not in users:
         return []
-    
+
     inventory = users[interaction.user.id].get("inventory", [])
-    available_tiers = {tier_key for item in inventory for tier_key, tier_value in tiers.items() 
-                      if tier_value["text"] == item[5]["text"] and tier_key in EXCHANGE_RATES}
-    
-    return [app_commands.Choice(name=tier, value=tier) for tier in sorted(available_tiers) 
-            if current.lower() in tier.lower()][:25]
+    available_tiers = {
+        tier_key
+        for item in inventory
+        for tier_key, tier_value in tiers.items()
+        if tier_value["text"] == item[5]["text"] and tier_key in EXCHANGE_RATES
+    }
+
+    return [
+        app_commands.Choice(name=tier, value=tier)
+        for tier in sorted(available_tiers)
+        if current.lower() in tier.lower()
+    ][:25]
 
 
 @exchange.autocomplete("name")
 async def exchange_name_autocomplete(interaction: discord.Interaction, current: str):
     user_id = interaction.user.id
     selected_tier = interaction.namespace.tier_name
-    
+
     if user_id not in users or not selected_tier or selected_tier not in EXCHANGE_RATES:
         return []
-    
+
     inventory = users[user_id].get("inventory", [])
     tier_info = tiers[selected_tier]
-    
-    available_names = {item[1] for item in inventory if item[5]["text"] == tier_info["text"]}
-    
-    return [app_commands.Choice(name=name, value=name) for name in sorted(available_names) 
-            if current.lower() in name.lower()][:25]
+
+    available_names = {
+        item[1] for item in inventory if item[5]["text"] == tier_info["text"]
+    }
+
+    return [
+        app_commands.Choice(name=name, value=name)
+        for name in sorted(available_names)
+        if current.lower() in name.lower()
+    ][:25]
+
 
 @exchange.autocomplete("amount")
 async def exchange_amount_autocomplete(interaction: discord.Interaction, current: str):
     user_id = interaction.user.id
     selected_tier = interaction.namespace.tier_name
     selected_name = interaction.namespace.name
-    
-    if user_id not in users or not selected_tier or not selected_name or selected_tier not in EXCHANGE_RATES:
+
+    if (
+        user_id not in users
+        or not selected_tier
+        or not selected_name
+        or selected_tier not in EXCHANGE_RATES
+    ):
         return []
-    
+
     inventory = users[user_id].get("inventory", [])
     tier_info = tiers[selected_tier]
-    
-    target_card = next((item for item in inventory 
-                       if item[1] == selected_name and item[5]["text"] == tier_info["text"]), None)
-    
+
+    target_card = next(
+        (
+            item
+            for item in inventory
+            if item[1] == selected_name and item[5]["text"] == tier_info["text"]
+        ),
+        None,
+    )
+
     if not target_card:
         return []
-    
+
     max_amount = min(target_card[6], 25)  # Limit to 25 choices or actual amount
     amounts = [str(i) for i in range(1, max_amount + 1) if current in str(i)]
-    
-    return [app_commands.Choice(name=f"{amount} 張", value=int(amount)) for amount in amounts]
+
+    return [
+        app_commands.Choice(name=f"{amount} 張", value=int(amount))
+        for amount in amounts
+    ]
 
 
 @bot.command()
@@ -696,9 +726,7 @@ async def on_message(message):
                     f"{message.author.display_name} counted {parsed} ({msg})"
                 )  # debug
 
-                if not any(
-                    tokugawa in message.content for tokugawa in tokugawa_map
-                ):  # check if tokugawa
+                if not "tokugawa" in message.content:  # check if tokugawa
                     embed = discord.Embed(
                         title="請用德川表示法",
                         description="本機器人不接受使用正常數字表示法",

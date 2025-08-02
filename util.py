@@ -70,20 +70,6 @@ TIER_ORDER = {
     "\u7537\u9285": 5,
 }
 
-tokugawa_map = {
-    "<:tokugawa:1228747556306161774>": "1",
-    "<:tokugawa_02:1282511585281314869>": "2",
-    "<:tokugawa_03:1289519032008966227>": "3",
-    "<:tokugawa_04:1314835422609674243>": "4",
-    "<:tokugawa_05:1329192567627059213>": "5",
-    "<:tokugawa_06:1332371207907053579>": "6",
-    "<:tokugawa_07:1332371319253106689>": "7",
-    "<:tokugawa_08:1332371687517192223>": "8",
-    "<:tokugawa_09:1332650900740767744>": "9",
-    "<:tokugawa_10:1333780328447213599>": "0",
-}
-
-
 EXCHANGE_RATES = {"Gold": 1, "WhiteGold": 6, "BlackGold": 18, "Rainbow": 160}
 
 response = requests.get(url)
@@ -96,15 +82,16 @@ num_rows = len(rows)
 
 
 def parse_emoji_expression(input_str):
-    emoji_pattern = "|".join(re.escape(k) for k in tokugawa_map.keys())
-    emoji_regex = re.compile(emoji_pattern)
-
     input_str = input_str.replace(" ", "")  # remove spaces
 
     def replace(match):
-        full_emoji = match.group(0)
-        return tokugawa_map.get(full_emoji, "")  # will always match
+        emoji_name = match.group(1)
+        if not emoji_name:
+            return "1"
+        else:
+            return emoji_name.lstrip("_0")  # will always match
 
+    emoji_regex = re.compile(r"<:tokugawa(_\d+)?:\d+>")
     result = emoji_regex.sub(replace, input_str)
     return result
 
