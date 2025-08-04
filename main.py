@@ -789,7 +789,11 @@ async def play_audio_loop():
             vc_client = await vc_channel.connect(reconnect=True)  # type: ignore
 
         if vc_client is not None and not vc_client.is_playing():
-            vc_client.play(discord.FFmpegPCMAudio("./media/restaurant.mp3"))
+            vc_client.play(
+                discord.FFmpegPCMAudio(
+                    "./media/restaurant.mp3", executable="/root/ffmpeg/bin/ffmpeg"
+                )
+            )
 
     except Exception as e:
         print(f"[Audio Error] {e}")
